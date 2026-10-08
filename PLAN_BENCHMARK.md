@@ -65,6 +65,13 @@ Alla delar konverteras till samma JSONL-format, så att samma poängsättning fu
 
 Dokumentnivåetiketter (finns kategori X i texten?) härleds från spannen. För de färdiga dataseten fylls bara de fält i som datasetet har.
 
+Två tillägg kom till när formatet byggdes:
+
+- **`identifiers`** är en lista bredvid `entities` för identifierare som inte är knutna till en person, till exempel platser och datum. I dataset utan personkoppling ligger alla identifierare där.
+- **`ignore: true`** på ett känsligt spann betyder att kategorin nämns utan att något avslöjas om en person, till exempel i en negation. Spannet räknas varken som träff eller som falsklarm.
+
+Schemat och alla regler står i [benchmark/README.md](benchmark/README.md).
+
 ## 3. Färdiga dataset
 
 **REDACT-SV.** Datasetet kan hämtas från GitHub redan nu. Det har 561 svenska dokument, och 157 av dem har art. 9/10-spann. Dess etiketter mappas till våra koder. Tre saker att veta:
@@ -72,6 +79,7 @@ Dokumentnivåetiketter (finns kategori X i texten?) härleds från spannen. För
 - **Bara explicita uttryck.** Datasetet säger inget om implicita uttryck.
 - **Etiketterna gäller ord, inte personer.** Ett partinamn märks även när ingen persons åsikt avslöjas. Därför används datasetet främst för identifierare, hälsa och brott. Övriga kategorier redovisas med förbehåll.
 - **Mycket kodväxling.** Bara 244 dokument är helt på svenska. Resultat redovisas både för alla dokument och för de helt svenska.
+- **Tunt utanför hälsa och brott.** Efter konverteringen räknas 147 dokument som positiva. Bland de helt svenska har `POLITICS` 6 dokument, `TRADE_UNION` 3, `RELIGION` 1 och `SEXUALITY` inget. Där går det bara att mäta `HEALTH` och, med stor osäkerhet, `CRIMINAL`.
 
 **PrivoNest-SV.** Kräver att huggingface.co öppnas i molnmiljön. Vi tittar på ett stickprov på 20–30 rader. Håller kvaliteten används den svenska testdelen som extra testdata och träningsdelen som träningsdata till encoder-modellerna. Annars stryks den.
 
@@ -166,8 +174,8 @@ Detta ska stå tydligt i resultatredovisningen.
 
 ## 8. Steg
 
-1. **REDACT-SV:** hämta, konvertera till formatet och mappa etiketterna. Kan göras nu.
-2. **Poängsättningsskript och formatvalidering.**
+1. **REDACT-SV:** hämta, konvertera till formatet och mappa etiketterna. *Klart.*
+2. **Poängsättningsskript och formatvalidering.** *Klart.*
 3. **Generator:** spec-slumpare, prompt, taggtolkning och kontroller. Generera 50 pilottexter, titta på dem och justera.
 4. **Full generering:** test (A+B), dev och train.
 5. **PrivoNest-SV:** stickprov och konvertering, när huggingface.co är öppnat.
@@ -182,7 +190,7 @@ benchmark/
   extern/         hämtning och konvertering av REDACT och PrivoNest
   generering/     spec-slumpare, promptar, taggtolkning, kontroller
   eval/           poängsättning
-  data/           genererade och konverterade data
+  data/           genererade och konverterade data (checkas inte in)
 ```
 
 ## 9. Öppna frågor
