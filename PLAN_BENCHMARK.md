@@ -162,8 +162,9 @@ Varje text tas fram i fyra steg.
 - 1–3 personer och vilken roll var och en har
 - 1–3 känsliga uppgifter, och för varje uppgift kategori, om den ska sägas rakt ut eller inte, och vem den gäller
 - hur lång texten ska vara och vilken ton den ska ha, till exempel vardagligt språk eller enstaka stavfel
+- en ledtråd till varje uppgift, och en ort och ett datum, så att texterna inte blir likadana
 
-Namnen hämtas från SCB:s namnstatistik, så att de är vanliga svenska namn. Personnumren hämtas från Skatteverkets lista över testpersonnummer, som aldrig delas ut till riktiga personer.
+Namnen hämtas från SCB:s namnstatistik, så att de är vanliga svenska namn. Personnumren hämtas från Skatteverkets lista över testpersonnummer, som aldrig delas ut till riktiga personer. Tills källorna går att nå från molnmiljön används platshållare, se [benchmark/README.md](benchmark/README.md#platshållare-för-namn-och-personnummer).
 
 **Steg 2: AI:n skriver texten och markerar uppgifterna.** Varje känslig uppgift omges av en markering som anger kategori, uttryckstyp och person. Det kan se ut ungefär så här:
 
@@ -171,7 +172,7 @@ Namnen hämtas från SCB:s namnstatistik, så att de är vanliga svenska namn. P
 Jag skriver angående min granne <PERSON P1>Erik Lund</PERSON>. Han <RELIGION implicit P1>går i moskén varje fredag</RELIGION> men ...
 ```
 
-Personer och identifierare markeras på samma sätt. Exakt hur markeringarna ska se ut bestäms när generatorn byggs.
+Personer och identifierare markeras på samma sätt. Alla regler för markeringarna står i [benchmark/README.md](benchmark/README.md#markeringarna).
 
 **Steg 3: Ett program tar bort markeringarna.** Programmet noterar var varje markering stod, räknar ut start- och slutposition och tar sedan bort markeringarna ur texten. Kvar blir en vanlig text och ett facit i formatet ovan.
 
@@ -180,6 +181,8 @@ Personer och identifierare markeras på samma sätt. Exakt hur markeringarna ska
 ### Kontroll av att implicit verkligen är implicit
 
 En AI som ska skriva en uppgift som inte sägs rakt ut kan ändå råka skriva ut den. För att fånga det finns det en lista med förbjudna ord för varje kategori. För `RELIGION` står till exempel "muslim", "religion", "troende" och "kristen" på listan. Ett spann som är märkt som implicit får inte innehålla något av orden. Ett program kontrollerar det, så att uppgifterna verkligen är implicita och inte bara märkta så.
+
+Orden får inte heller stå omarkerade någon annanstans i texten. Det fångar känsliga uppgifter som AI:n har skrivit utan att markera dem. Undantaget är texterna som bara liknar känsliga, se nästa avsnitt.
 
 ### Texter som liknar känsliga men inte är det
 
@@ -204,13 +207,13 @@ Den syntetiska delen består av 400 texter som har klarat kontrollerna i avsnitt
 
 Det finns ingen egen hög för träning (`train`) i den syntetiska delen. 400 texter räcker inte för att både träna och testa metoder som behöver tusentals exempel. Därför ligger tyngdpunkten på metoder som klarar sig utan exempel eller med några få, se [ANGREPPSSATT.md](ANGREPPSSATT.md). Metoder som behöver mer träningsdata kan tränas på PrivoNest, om det håller.
 
-Generatorn slumpar fram beställningarna så att varje kategori och uttryckstyp får ungefär lika många exempel. Genetiska och biometriska uppgifter tas inte med, eftersom de är sällsynta och har låg prioritet.
+Generatorn slumpar fram beställningarna så att varje kombination av kategori och uttryckstyp får ungefär lika många exempel. Genetiska och biometriska uppgifter tas bara med som explicita, eftersom de nästan aldrig uttrycks implicit. Det ger 15 kombinationer.
 
 **Varför testtexterna är låsta.** Om man justerar en metod tills den blir bra på testtexterna mäter man till slut hur väl metoden har anpassats till just de texterna, inte hur bra den är i allmänhet. Därför justerar vi bara mot dev-texterna och tittar på testtexterna först vid slutmätningen.
 
 **Varför två olika AI-modeller skriver testtexterna.** Varje AI-modell har sin egen stil. En metod som får exempel från modell A kan lära sig känna igen modell A:s stil i stället för de känsliga uppgifterna. Dev-texterna, som metoderna får exempel ur, kommer därför bara från modell A, medan testtexterna kommer från både A och B. Om en metod är mycket bättre på A:s testtexter än på B:s har den lärt sig stilen och inte uppgiften.
 
-**Hur säkra resultaten blir.** Ungefär en fjärdedel av testtexterna saknar känsliga uppgifter. Resten har 1–3 uppgifter var. Det ger ungefär 350–450 känsliga uppgifter i testtexterna, fördelade på 7 kategorier och 2 uttryckstyper, alltså ungefär 20–30 exempel i varje kombination.
+**Hur säkra resultaten blir.** Ungefär en fjärdedel av testtexterna saknar känsliga uppgifter. Resten har 1–3 uppgifter var. Det ger ungefär 350–450 känsliga uppgifter i testtexterna, fördelade på 15 kombinationer, alltså ungefär 20–30 exempel i varje kombination.
 
 - **Per kategori och uttryckstyp** blir osäkerheten ungefär plus minus 0,15. Om en metod hittar 20 av 25 (recall 0,80) ligger det verkliga värdet troligen någonstans mellan 0,61 och 0,91. Det räcker bara för att se mycket stora skillnader.
 - **För alla kategorier tillsammans** blir det ungefär 150–200 explicita och lika många implicita uppgifter. Då blir osäkerheten ungefär plus minus 0,06. Det räcker för att se vilka metoder som är bättre än andra, och hur mycket sämre de är på implicita uppgifter.
@@ -279,7 +282,7 @@ De här begränsningarna ska stå tydligt när resultaten redovisas.
 |---|---|---|
 | 1 | **REDACT-SV:** hämta datasetet, göra om det till vårt format och koppla dess etiketter till våra koder. | Klart |
 | 2 | **Poängprogram och formatkontroll:** programmet som räknar poäng och programmet som kontrollerar att filer har rätt format. | Klart |
-| 3 | **Textgeneratorn:** programmet som slumpar fram beställningar, instruktionerna till AI:n, tolkningen av markeringarna och kontrollerna. Vi skriver först 50 provtexter, läser dem och justerar. | Inte påbörjat |
+| 3 | **Textgeneratorn:** programmet som slumpar fram beställningar, instruktionerna till AI:n, tolkningen av markeringarna och kontrollerna. Vi skriver först 50 provtexter, läser dem och justerar. | Pågår. Generatorn finns och har provkörts. Kvar är granskningen av en annan AI-modell (kontroll 3) och riktiga namn och personnummer. |
 | 4 | **Alla AI-skrivna texter:** 400 texter, uppdelade på test (av modell A och B) och dev. | Inte påbörjat |
 | 5 | **PrivoNest-SV:** stickprov och konvertering till vårt format, när Hugging Face har öppnats. | Inte påbörjat |
 | 6 | **Två enkla referensmetoder** körs på allt för att testa att hela kedjan fungerar: en som letar efter ord ur en ordlista och en AI med skrivna instruktioner. Därefter börjar metodjämförelsen i fråga 2. | Inte påbörjat |
@@ -291,7 +294,7 @@ benchmark/
   README.md       datablad: delarna, storlek och kända brister
   schema/         beskrivning av formatet och programmet som kontrollerar det
   extern/         hämtning och konvertering av REDACT och PrivoNest
-  generering/     textgeneratorn (finns inte än)
+  generering/     textgeneratorn
   eval/           poängprogrammet
   data/           hämtade och genererade texter (sparas inte i repot)
 ```

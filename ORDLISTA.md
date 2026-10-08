@@ -66,6 +66,10 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **Verifierare.** En LLM från en annan tillverkare än generatorn som granskar de syntetiska texterna och deras facit.
 
+**Scenariospec.** En slumpad beställning av en syntetisk text: vilken sorts underrättelse det är, vilka personer som finns med och vilka känsliga uppgifter texten ska innehålla. Facit följer av specen.
+
+**Distraktor.** Ett ord som liknar en känslig kategori utan att avslöja något om någon, till exempel en moské som nämns som riktmärke. Distraktorer behövs för att kunna mäta precision.
+
 **Baslinje.** En enkel metod som andra metoder jämförs med. Om en avancerad metod inte slår baslinjen är den inte värd besväret.
 
 **Zero-shot och few-shot.** En metod som fungerar utan några exempel alls är *zero-shot*. En metod som bara behöver några få exempel per kategori är *few-shot*.
