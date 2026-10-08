@@ -63,3 +63,20 @@ def placeholder_personnummer(rng: random.Random, gender: str) -> str:
     nine = f"{year % 100:02d}{month:02d}{day:02d}{serial:03d}"
     wrong = (luhn_digit(nine) + rng.randint(1, 9)) % 10
     return f"{nine[:6]}-{nine[6:]}{wrong}"
+
+
+# Orter och gator som slumpas ut, så att texterna inte alla utspelar sig på samma plats.
+# Orter som också är vanliga efternamn, som Lund, är utelämnade.
+PLACES = (
+    "Kiruna", "Luleå", "Piteå", "Skellefteå", "Umeå", "Östersund", "Sundsvall", "Härnösand",
+    "Gävle", "Falun", "Mora", "Ludvika", "Uppsala", "Västerås", "Örebro", "Karlstad", "Eskilstuna",
+    "Nyköping", "Södertälje", "Botkyrka", "Järfälla", "Haninge", "Norrköping", "Linköping",
+    "Motala", "Jönköping", "Växjö", "Kalmar", "Karlskrona", "Kristianstad", "Helsingborg",
+    "Malmö", "Ystad", "Göteborg", "Borås", "Trollhättan", "Lidköping", "Halmstad", "Varberg", "Visby",
+)
+STREETS = (
+    "Björkvägen", "Kvarngatan", "Skolgatan", "Ringvägen", "Tallstigen", "Ekbacken", "Solrosvägen",
+    "Hantverkargatan", "Smedjegatan", "Parkvägen", "Lärkgatan", "Fabriksgatan", "Åsvägen",
+    "Sjöviksvägen", "Mossvägen", "Granitvägen", "Klövervägen", "Bergsgatan", "Västra Långgatan",
+    "Norra Esplanaden", "Brunnsgatan", "Idrottsvägen", "Rönnbärsstigen", "Hamngatan",
+)

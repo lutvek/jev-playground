@@ -87,33 +87,60 @@ def test_normalize_response():
     assert normalize_response("\nHej\n") == "Hej"
 
 
-def test_command_line(tmp_path, capsys):
+def test_empty_response_is_rejected():
+    spec = sample_specs(1, name="tom", seed=1)[0]
+    for response in (None, "", "  "):
+        record, problems = process(spec, response, "mall")
+        assert record is None
+        assert [p.code for p in problems] == ["tomt-svar"]
+
+
+def test_command_line_with_retries(tmp_path, capsys):
     specs_path = tmp_path / "pilot.specs.jsonl"
     args = ["--name", "pilot", "--n", "8", "--seed", "1", "--split", "dev", "--out", str(specs_path)]
     assert spec_cli.main(args) == 0
     specs = [s for _, s in read_jsonl(specs_path)]
     assert all(s["prompt"] == build_prompt(s) for s in specs)
+    ids = [s["scenario_id"] for s in specs]
 
-    responses = list(respond(specs, TemplateLLM(specs)))
-    responses[0]["response"] = "Trasig <PERSON P1>text"
-    responses[1]["generator"] = "annan"
-    responses_path = tmp_path / "pilot.responses.jsonl"
-    write_jsonl(responses_path, responses[:-1])
+    # Första omgången: en trasig text, ett tomt svar, ett svar från en annan generator och ett
+    # scenario utan svar.
+    good = list(respond(specs, TemplateLLM(specs)))
+    first = [dict(line) for line in good[:-1]]
+    first[0]["response"] = "Trasig <PERSON P1>text"
+    first[1]["response"] = None
+    first[2]["generator"] = "annan"
+    first_path = tmp_path / "pilot.responses.jsonl"
+    write_jsonl(first_path, first)
     capsys.readouterr()
 
-    assert build.main(["--specs", str(specs_path), "--responses", str(responses_path)]) == 0
+    assert build.main(["--specs", str(specs_path), "--responses", str(first_path)]) == 0
     stats = json.loads(capsys.readouterr().out)
-    assert (stats["specar"], stats["utan svar"], stats["godkända"], stats["bortsorterade"]) == (8, 1, 6, 1)
-    assert stats["skäl (antal texter)"] == {"taggar": 1}
-    assert stats["per generator"]["annan"] == {"godkända": 1, "bortsorterade": 0, "andel bortsorterade": 0.0}
-    assert stats["per generator"]["mall"]["bortsorterade"] == 1
+    assert (stats["specar"], stats["utan svar"], stats["försök"], stats["godkända"]) == (8, 1, 7, 5)
+    assert stats["skäl (antal försök)"] == {"taggar": 1, "tomt-svar": 1}
+    assert stats["per generator"]["annan"]["godkända"] == 1
+    mall = stats["per generator"]["mall"]
+    assert (mall["försök"], mall["godkända"], mall["andel bortsorterade"]) == (6, 4, 0.333)
+    assert sum(t["specar"] for t in stats["per typ"].values()) == 8
+    assert json.loads((tmp_path / "pilot.stats.json").read_text(encoding="utf-8")) == stats
+    rejected = [r for _, r in read_jsonl(tmp_path / "pilot.rejected.jsonl")]
+    assert [(r["scenario_id"], r["line"]) for r in rejected] == [(ids[0], 1), (ids[1], 2)]
+    retry = [s for _, s in read_jsonl(tmp_path / "pilot.retry.specs.jsonl")]
+    assert [s["scenario_id"] for s in retry] == [ids[0], ids[1], ids[7]]
+    assert all(s["prompt"] for s in retry)
+
+    # Andra omgången: nya försök för de tre, plus ett överflödigt försök för ett godkänt scenario.
+    second_path = tmp_path / "pilot.retry.responses.jsonl"
+    write_jsonl(second_path, [good[0], good[1], good[7], good[3]])
+    args = ["--specs", str(specs_path), "--responses", str(first_path), str(second_path)]
+    assert build.main(args) == 0
+    stats = json.loads(capsys.readouterr().out)
+    assert (stats["utan svar"], stats["försök"], stats["godkända"]) == (0, 10, 8)
+    assert stats["överflödiga försök"] == 1
 
     out = tmp_path / "pilot.jsonl"
     assert validate_file(out) == []
     records = [r for _, r in read_jsonl(out)]
-    assert [r["id"] for r in records] == [f"syn-{s['scenario_id']}" for s in specs[1:7]]
+    assert [r["id"] for r in records] == [f"syn-{i}" for i in ids]
     assert all(r["split"] == "dev" for r in records)
-    [rejected] = [r for _, r in read_jsonl(tmp_path / "pilot.rejected.jsonl")]
-    assert rejected["scenario_id"] == specs[0]["scenario_id"]
-    assert rejected["problems"][0]["code"] == "taggar"
-    assert json.loads((tmp_path / "pilot.stats.json").read_text(encoding="utf-8")) == stats
+    assert [s for _, s in read_jsonl(tmp_path / "pilot.retry.specs.jsonl")] == []

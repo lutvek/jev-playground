@@ -3,8 +3,9 @@
     Han <RELIGION implicit P1>går i moskén</RELIGION>.  ->  "Han går i moskén." och spannet (4, 16)
 
 En tagg är <ETIKETT attribut ...>…</ETIKETT>, där ETIKETT är en känslig kategori eller en
-identifierartyp. Känsliga kategorier tar uttryckstyp och person, i valfri ordning. Identifierare
-tar valfritt en person. Taggar får ligga inuti varandra men inte korsa varandra.
+identifierartyp, med versaler eller gemener. Känsliga kategorier tar uttryckstyp och person, i
+valfri ordning. Identifierare tar valfritt en person. Taggar får ligga inuti varandra men inte
+korsa varandra. Allt annat som ser ut som en tagg, till exempel <br>, är ett fel.
 """
 
 import re
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 
 from benchmark.schema.labels import CATEGORIES, EXPRESSIONS, IDENTIFIER_TYPES
 
-TAG = re.compile(r"<(/?)([A-Z][A-Z_]*)([^<>]*)>")
+TAG = re.compile(r"<(/?)([A-Za-z][A-Za-z_]*)([^<>]*)>")
 PERSON_ID = re.compile(r"P\d+")
 
 
@@ -31,7 +32,7 @@ class TaggedSpan:
 
 def _attributes(label: str, tag: str, attrs: list[str]) -> tuple[str | None, str | None]:
     expressions = [a.casefold() for a in attrs if a.casefold() in EXPRESSIONS]
-    persons = [a for a in attrs if PERSON_ID.fullmatch(a)]
+    persons = [a.upper() for a in attrs if PERSON_ID.fullmatch(a.upper())]
     if len(expressions) + len(persons) != len(attrs) or len(expressions) > 1 or len(persons) > 1:
         raise TagError(f"{tag}: okända eller dubbla attribut")
     if label in CATEGORIES and not (expressions and persons):
@@ -55,7 +56,7 @@ def parse(tagged: str) -> tuple[str, list[TaggedSpan]]:
         length += len(piece)
         last = m.end()
 
-        tag, closing, label, attrs = m.group(), m.group(1) == "/", m.group(2), m.group(3).split()
+        tag, closing, label, attrs = m.group(), m.group(1) == "/", m.group(2).upper(), m.group(3).split()
         if label not in CATEGORIES and label not in IDENTIFIER_TYPES:
             raise TagError(f"okänd tagg {tag}")
         if not closing:

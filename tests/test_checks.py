@@ -92,6 +92,11 @@ def test_category_words():
     # Ett explicit spann räcker, också i en annan kategori: "sexualbrott" är både brott och sexualitet.
     assert codes(RESPONSE.replace("för depression", "för depression efter ett sexualbrott")) == []
 
+    # Ord med andra vanliga betydelser räknas bara i implicita spann.
+    assert codes(RESPONSE + " Han brukar hälsa på dottern på den kommunala förskolan.") == []
+    in_implicit = RESPONSE.replace("går i moskén", "tackar Gud och går i moskén")
+    assert codes(in_implicit) == ["förbjudet-ord"]
+
 
 def test_distractor_categories_are_exempt_in_negative_texts():
     spec = copy.deepcopy(SPEC)
@@ -105,6 +110,7 @@ def test_names():
     assert codes(RESPONSE + " Erik är aldrig hemma.") == ["omärkt-namn"]
     assert codes(RESPONSE + " Eriks bil står kvar.") == ["omärkt-namn"]
     assert codes(RESPONSE + " <PERSON P1>Eriks</PERSON> bil står kvar.") == []
+    assert codes(RESPONSE + " <PERSON P1>Erik</PERSON>s bil står kvar.") == []
     assert codes(RESPONSE + " Han bor på <ADDRESS>Eriks väg 3</ADDRESS>.") == []
     assert codes(RESPONSE + " <PERSON P1>Elsa</PERSON> leker.") == ["fel-namn"]
     assert codes(RESPONSE + " Jag heter <PERSON P0>Karin</PERSON>.") == ["fel-namn"]
@@ -141,6 +147,8 @@ def test_tag_errors_reject_the_text():
         ("TRADE_UNION", "Hon är skyddsombud", []),
         ("CRIMINAL", "Det blev ett avbrott i ett benbrott", []),
         ("CRIMINAL", "Han åtalades för inbrott", ["åtalades", "inbrott"]),
+        ("CRIMINAL", "Det påtalades att han brottas med skulder", []),
+        ("RELIGION", "Hon har förtroende för skolan", []),
     ],
 )
 def test_forbidden_matches(category, text, expected):

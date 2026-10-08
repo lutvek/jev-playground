@@ -3,9 +3,13 @@
     python -m benchmark.generering.build --specs benchmark/data/synthetic/pilot.specs.jsonl \\
         --responses benchmark/data/synthetic/pilot.responses.jsonl
 
-Svarsfilen har en rad per text: {"scenario_id": ..., "generator": ..., "response": ...}.
-Godkända poster skrivs till --out, bortsorterade med skäl till <out>.rejected.jsonl och
-statistik till <out>.stats.json.
+Svarsfilen har en rad per försök: {"scenario_id": ..., "generator": ..., "response": ...}.
+Ett scenario får ha flera försök, i samma fil eller i flera filer efter --responses. Det första
+godkända försöket används och senare försök för samma scenario hoppas över.
+
+Godkända poster skrivs till --out, bortsorterade försök med skäl till <out>.rejected.jsonl och
+statistik till <out>.stats.json. Specarna för scenarier som saknar ett godkänt försök skrivs till
+<out>.retry.specs.jsonl, så att de kan skickas till modellen igen.
 """
 
 import argparse
@@ -84,8 +88,10 @@ def build_record(spec: dict, response: str, generator: str) -> dict:
     return record
 
 
-def process(spec: dict, response: str, generator: str) -> tuple[dict | None, list[Problem]]:
-    """Posten och problemen med den. Posten är None om taggarna inte gick att tolka."""
+def process(spec: dict, response: object, generator: str) -> tuple[dict | None, list[Problem]]:
+    """Posten och problemen med den. Posten är None om svaret är tomt eller taggarna inte gick att tolka."""
+    if not isinstance(response, str) or not response.strip():
+        return None, [Problem("tomt-svar", "svaret är tomt")]
     try:
         record = build_record(spec, response, generator)
     except TagError as e:
@@ -95,67 +101,108 @@ def process(spec: dict, response: str, generator: str) -> tuple[dict | None, lis
     return record, check(spec, record)
 
 
-def summarize(specs: dict[str, dict], results: list[tuple[str, str, list[Problem]]]) -> dict:
-    """Statistik över en omgång. results är (scenario_id, generator, problem) per svar."""
-    answered = {scenario_id for scenario_id, _, _ in results}
+def summarize(specs: dict[str, dict], attempts: list[tuple[str, str, list[Problem]]]) -> dict:
+    """Statistik över en omgång. attempts är (scenario_id, generator, problem) per bearbetat försök.
+
+    Andelen bortsorterade räknas per försök och visar hur svår en kategori är att generera.
+    Godkända är lika med antalet texter som fick ett godkänt försök.
+    """
+
+    def name(fact: dict) -> str:
+        return f"{fact['category']} {fact['expression']}"
+
+    def groups(spec: dict, generator: str | None = None) -> list[tuple[str, str]]:
+        keys = [("per cell", name(f)) for f in spec["facts"]] or [("per cell", "negativa")]
+        keys.append(("per typ", spec["report_type"]))
+        if generator is not None:
+            keys.append(("per generator", generator))
+        return keys
+
+    totals: dict[tuple[str, str], Counter] = defaultdict(Counter)
+    for spec in specs.values():
+        for key in groups(spec):
+            totals[key]["specar"] += 1
     reasons: Counter = Counter()
-    cells: dict[str, Counter] = defaultdict(Counter)
-    generators: dict[str, Counter] = defaultdict(Counter)
-    for scenario_id, generator, problems in results:
+    for scenario_id, generator, problems in attempts:
         outcome = "bortsorterade" if problems else "godkända"
         reasons.update({p.code for p in problems})
-        generators[generator][outcome] += 1
-        facts = specs[scenario_id]["facts"]
-        for name in [f"{f['category']} {f['expression']}" for f in facts] or ["negativa"]:
-            cells[name][outcome] += 1
+        for key in [("totalt", "")] + groups(specs[scenario_id], generator):
+            totals[key]["försök"] += 1
+            totals[key][outcome] += 1
 
-    def counts(c: Counter) -> dict:
-        total = c["godkända"] + c["bortsorterade"]
-        share = round(c["bortsorterade"] / total, 3) if total else None
-        return {"godkända": c["godkända"], "bortsorterade": c["bortsorterade"], "andel bortsorterade": share}
+    def counts(c: Counter, with_specs: bool = True) -> dict:
+        share = round(c["bortsorterade"] / c["försök"], 3) if c["försök"] else None
+        result = {"specar": c["specar"]} if with_specs else {}
+        return result | {
+            "försök": c["försök"],
+            "godkända": c["godkända"],
+            "bortsorterade": c["bortsorterade"],
+            "andel bortsorterade": share,
+        }
 
+    answered = {scenario_id for scenario_id, _, _ in attempts}
+    cell_names = [f"{c} {e}" for c, e in CELLS] + ["negativa"]
     return {
         "specar": len(specs),
         "utan svar": len(specs.keys() - answered),
-        **counts(sum(generators.values(), Counter())),
-        "skäl (antal texter)": dict(reasons.most_common()),
-        "per cell": {name: counts(cells[name]) for name in [f"{c} {e}" for c, e in CELLS] + ["negativa"]},
-        "per generator": {g: counts(c) for g, c in sorted(generators.items())},
+        **counts(totals[("totalt", "")], with_specs=False),
+        "skäl (antal försök)": dict(reasons.most_common()),
+        "per cell": {n: counts(totals[("per cell", n)]) for n in cell_names},
+        "per typ": {key: counts(c) for (group, key), c in sorted(totals.items()) if group == "per typ"},
+        "per generator": {
+            key: counts(c, with_specs=False)
+            for (group, key), c in sorted(totals.items())
+            if group == "per generator"
+        },
     }
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Bygg benchmarkposter av LLM-svar och kontrollera dem.")
     parser.add_argument("--specs", type=Path, required=True, help="specar från benchmark.generering.spec")
-    parser.add_argument("--responses", type=Path, required=True, help="LLM-svar, en rad per text")
+    parser.add_argument(
+        "--responses", type=Path, nargs="+", required=True, help="LLM-svar i en eller flera filer"
+    )
     parser.add_argument("--out", type=Path, help="standard: specfilen med .jsonl i stället för .specs.jsonl")
     args = parser.parse_args(argv)
 
     specs = {spec["scenario_id"]: spec for _, spec in read_jsonl(args.specs)}
     out = args.out or args.specs.with_name(args.specs.name.removesuffix(".specs.jsonl") + ".jsonl")
 
-    accepted, rejected, results, seen = [], [], [], set()
-    for lineno, line in read_jsonl(args.responses):
-        scenario_id = line["scenario_id"]
-        if scenario_id not in specs:
-            raise SystemExit(f"{args.responses}:{lineno}: scenario {scenario_id!r} finns inte i {args.specs}")
-        if scenario_id in seen:
-            raise SystemExit(f"{args.responses}:{lineno}: scenario {scenario_id!r} har redan ett svar")
-        seen.add(scenario_id)
-        record, problems = process(specs[scenario_id], line["response"], line["generator"])
-        results.append((scenario_id, line["generator"], problems))
-        if problems:
-            rejected.append({**line, "problems": [{"code": p.code, "message": p.message} for p in problems]})
-        else:
-            accepted.append(record)
+    accepted: dict[str, dict] = {}
+    rejected, attempts, skipped = [], [], 0
+    for path in args.responses:
+        for lineno, line in read_jsonl(path):
+            scenario_id, generator = line.get("scenario_id"), line.get("generator")
+            if scenario_id not in specs:
+                raise SystemExit(f"{path}:{lineno}: scenario {scenario_id!r} finns inte i {args.specs}")
+            if not isinstance(generator, str) or not generator:
+                raise SystemExit(f"{path}:{lineno}: generator saknas")
+            if scenario_id in accepted:
+                skipped += 1
+                continue
+            record, problems = process(specs[scenario_id], line.get("response"), generator)
+            attempts.append((scenario_id, generator, problems))
+            if problems:
+                problem_list = [{"code": p.code, "message": p.message} for p in problems]
+                rejected.append({**line, "file": str(path), "line": lineno, "problems": problem_list})
+            else:
+                accepted[scenario_id] = record
 
-    write_jsonl(out, accepted)
+    # Godkända poster i samma ordning som specarna, oavsett i vilken ordning försöken kom.
+    write_jsonl(out, (accepted[i] for i in specs if i in accepted))
     write_jsonl(out.with_suffix(".rejected.jsonl"), rejected)
-    summary = summarize(specs, results)
+    retry = [spec for i, spec in specs.items() if i not in accepted]
+    write_jsonl(out.with_suffix(".retry.specs.jsonl"), retry)
+    summary = summarize(specs, attempts) | {"överflödiga försök": skipped}
     stats = json.dumps(summary, ensure_ascii=False, indent=2)
     out.with_suffix(".stats.json").write_text(stats + "\n", encoding="utf-8")
     print(stats)
-    print(f"Skrev {len(accepted)} godkända poster till {out}, {len(rejected)} bortsorterade", file=sys.stderr)
+    print(
+        f"Skrev {len(accepted)} godkända poster till {out}. {len(retry)} scenarier saknar ett godkänt "
+        f"försök och står i {out.with_suffix('.retry.specs.jsonl')}.",
+        file=sys.stderr,
+    )
     return 0
 
 

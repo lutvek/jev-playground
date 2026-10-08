@@ -12,7 +12,7 @@ Bakgrunden står i [PLAN_BENCHMARK.md](../PLAN_BENCHMARK.md). Begrepp som kan va
 |---|---|---|
 | REDACT-SV | Klar | `data/redact/redact_sv.jsonl` |
 | PrivoNest-SV | Inte påbörjad | |
-| Syntetisk | Inte påbörjad | |
+| Syntetisk | Generatorn finns och har provkörts. Den fullständiga genereringen återstår. | `data/synthetic/<omgång>.jsonl` |
 
 Datafilerna sparas inte i repot, bland annat eftersom rådatan är 213 MB. De skapas på nytt med kommandona nedan.
 
@@ -42,6 +42,8 @@ Det här gör de:
 4. **`benchmark.eval.score`** räknar poäng för en metods svar. Filen `pred.jsonl` är de svar som metoden har gett, se [Poängsättning](#poängsättning). Det finns ingen metod i repot än, så det här steget går inte att köra förrän någon har tagit fram en sådan fil.
 5. **`uv run pytest`** kör de automatiska testerna.
 
+Hur man tar fram de syntetiska texterna står i [Syntetisk del](#syntetisk-del).
+
 ## Mappar och filer
 
 ```
@@ -52,6 +54,15 @@ schema/
   labels.py                läser kategorierna ur schemat, så att koden och schemat alltid har samma lista
 extern/
   redact.py                hämtning och konvertering av REDACT
+generering/
+  spec.py                  slumpar fram scenariospecar och skriver dem med instruktionerna till AI:n
+  prompt.py                instruktionerna till AI:n
+  tags.py                  tolkar AI:ns markeringar
+  checks.py                de automatiska kontrollerna
+  build.py                 gör om AI:ns svar till texter med facit och sorterar bort dem som inte håller
+  categories.py            beskrivningar, ledtrådar och förbjudna ord för varje kategori
+  resources.py             namn, personnummer, orter och gator
+  llm.py                   hur en koppling till en AI-modell ska se ut
 eval/
   score.py                 poängsättningen
 jsonl.py                   läsning och skrivning av JSONL-filer
@@ -181,6 +192,92 @@ Några av REDACT:s etiketter kopplas inte till någon kod:
 - **Många texter blandar språk.** 317 av de 561 texterna blandar svenska med engelska eller andra språk. Hur mycket varje text blandar står i fältet `source.code_switching`: `none` (bara svenska), `light` eller `heavy`.
 - **Konstlade ord.** Ett 40-tal av de 438 känsliga uppgifterna är ihopskrivna ord utan mellanslag, som `PenicillinSvårAnafylaxi` och `ErikLindqvistPD4010Sjuk5Dagar`. Så skriver inte människor.
 - **Ofullständiga identifierare.** 276 av de 14 693 märkningarna är delvis dolda eller ofullständiga, till exempel `850315-XXXX`. De ligger kvar som vanliga identifierare.
+
+## Syntetisk del
+
+Den syntetiska delen består av texter som en AI skriver på vår beställning. Bakgrunden står i [PLAN_BENCHMARK.md, avsnitt 4](../PLAN_BENCHMARK.md#4-egna-ai-skrivna-texter). Koden finns i mappen [generering/](generering/).
+
+### Så tar man fram texter
+
+```
+uv run python -m benchmark.generering.spec --name pilot --n 50 --seed 1
+uv run python -m benchmark.generering.build --specs benchmark/data/synthetic/pilot.specs.jsonl \
+    --responses benchmark/data/synthetic/pilot.responses.jsonl
+```
+
+1. **`benchmark.generering.spec`** slumpar fram 50 beställningar, så kallade scenariospecar, och sparar dem i `pilot.specs.jsonl`. Varje rad innehåller också den färdiga instruktionen till AI:n, i fältet `prompt`. Samma `--seed` ger alltid samma specar. Med `--split` anger man om texterna är till för `test`, `dev` eller `train`.
+2. **AI:n svarar.** Varje `prompt` skickas till AI-modellen, och svaren sparas i `pilot.responses.jsonl` med en rad per svar: `{"scenario_id": ..., "generator": ..., "response": ...}`. `generator` är modellens namn. Repot har ingen färdig koppling till en modell, så det här steget görs med valfritt verktyg. Hur en sådan koppling ska se ut står i [generering/llm.py](generering/llm.py).
+3. **`benchmark.generering.build`** tolkar markeringarna i svaren, gör om dem till texter med facit och kör kontrollerna. Programmet skriver fyra filer:
+   - `pilot.jsonl`: de godkända texterna
+   - `pilot.rejected.jsonl`: de bortsorterade svaren, med skälen
+   - `pilot.stats.json`: statistik, se nedan
+   - `pilot.retry.specs.jsonl`: specarna för de scenarier som ännu saknar en godkänd text
+
+**Nya försök.** Skicka instruktionerna i `pilot.retry.specs.jsonl` till AI:n igen, spara svaren i en ny fil och kör `build` med båda svarsfilerna efter `--responses`. Det första godkända svaret för varje scenario används, och senare svar för samma scenario hoppas över. På så sätt krymper inte de kombinationer av kategori och uttryckstyp där många svar sorteras bort.
+
+### Vad en scenariospec innehåller
+
+| Del | Innehåll |
+|---|---|
+| Typ av underrättelse | En av sex allmänna typer: orosanmälningar och klagomål på grannar från privatpersoner, underrättelser från polisen och från andra myndigheter, och orosanmälningar från skola och vård. |
+| Personer | Avsändaren (P0), den som texten främst gäller (P1) och i hälften av texterna en tredje person (P2): en partner, en annan vuxen eller ett barn. |
+| Känsliga uppgifter | 1–3 per text. Varje uppgift har kategori, uttryckstyp, vem den gäller och en ledtråd. |
+| Ledtrådar | Slumpas ur en lista för varje kombination av kategori och uttryckstyp, till exempel "fasta under en viss period" för en implicit uppgift om religion. Utan ledtrådar skriver AI:n gärna samma sak varje gång. |
+| Distraktorer | En fjärdedel av texterna har inga känsliga uppgifter. De har i stället 1–2 *distraktorer*: ord som liknar en känslig kategori utan att avslöja något om någon, till exempel en moské som nämns som riktmärke. |
+| Ort, datum och adress | Slumpas ut, adressen i hälften av texterna, så att texterna inte alla utspelar sig på samma gata samma dag. |
+| Stil | Längd, ton och, i texter från privatpersoner, stavfel. |
+
+Regler för slumpningen:
+
+- **Lika många uppgifter i varje kombination.** Varje ny uppgift väljs bland de kombinationer av kategori och uttryckstyp som har fått minst uppgifter hittills. 1 000 texter ger ungefär 80 uppgifter per kombination. Det räcker till kravet på minst 50 även om en del sorteras bort.
+- **Högst en uppgift per kategori och text.** Då innehåller en text aldrig både en explicit och en implicit uppgift i samma kategori, se [En begränsning](#en-begränsning).
+- **Inga implicita genetiska eller biometriska uppgifter**, eftersom sådana uttryck nästan aldrig förekommer.
+- **Bara vuxna får känsliga uppgifter.** En privatperson kan skriva om sig själv, men en polis eller handläggare gör det aldrig.
+- **Par av samma kön bara när det ingår i facit.** En partner av samma kön avslöjar sexuell läggning. Partnern får därför samma kön som P1 bara när specen har en uppgift om läggningen hos någon av de två. Annars får partnern motsatt kön.
+- **Namnen slumpas oberoende av uppgifterna**, så att ett namn aldrig avslöjar en kategori.
+- **Inga typer eller avsändare som i sig avslöjar en kategori.** Kriminalvården och psykiatrin är inte med. Inte heller tips om fusk eller svartarbete, eftersom ett sådant tips är en misstanke om brott.
+
+### Platshållare för namn och personnummer
+
+Namnen ska hämtas från SCB:s namnstatistik och personnumren från Skatteverkets lista över testpersonnummer. Ingen av källorna går att nå från molnmiljön än. Tills vidare används en kort lista med vanliga namn, och personnummer med fel kontrollsiffra, som därför inte kan tillhöra någon. Specar och texter som bygger på platshållarna har `placeholders: true`. De ska bytas ut före den fullständiga genereringen.
+
+### Markeringarna
+
+AI:n markerar uppgifterna med taggar direkt i texten:
+
+```
+Jag skriver om <PERSON P1>Erik Lund</PERSON>. Han <RELIGION implicit P1>går i moskén varje fredag</RELIGION>.
+```
+
+- **Känsliga uppgifter** har kategori, `explicit` eller `implicit`, och vem uppgiften gäller.
+- **Namn och personnummer** har typ och person. Bara namn markeras, inte "han" eller "grannen". Då mäts identifierare på samma sätt som i REDACT.
+- **Andra identifierare**, som `DATE`, `LOCATION`, `ADDRESS`, `ORGANISATION` och `IDENTIFIER`, markeras utan person och hamnar i fältet `identifiers`.
+- **Taggar får ligga inuti varandra** men inte korsa varandra. Versaler och gemener räknas lika. Allt annat som ser ut som en tagg, till exempel `<br>`, gör att svaret sorteras bort.
+
+### Kontrollerna
+
+Ett svar sorteras bort om någon kontroll slår till. Det här är kontroll 1 och 2 i [planens avsnitt 5](../PLAN_BENCHMARK.md#5-kvalitetskontroll-utan-handmärkning). Kontroll 3, granskningen av en annan AI-modell, finns inte än.
+
+| Skäl | Vad det betyder |
+|---|---|
+| `tomt-svar` | Svaret är tomt. |
+| `taggar` | Markeringarna går inte att tolka, eller pekar på en person som inte finns i specen. |
+| `format` | Texten klarar inte formatkontrollen. |
+| `saknad-uppgift`, `oväntad-uppgift` | De markerade uppgifterna stämmer inte med specen, till exempel fel person eller fel uttryckstyp. |
+| `förbjudet-ord` | En implicit uppgift innehåller ett ord som namnger kategorin, till exempel "muslim" för `RELIGION`. |
+| `omärkt-kategoriord` | Ett ord som namnger en kategori står utanför de explicita uppgifterna. Det fångar uppgifter som AI:n har skrivit men inte markerat. |
+| `namn-saknas`, `fel-namn`, `omärkt-namn` | Ett namn ur specen saknas, är markerat som fel person eller står utan markering. Ett genitiv-s får stå utanför taggen. |
+| `personnummer` | Ett personnummer saknas, är fel eller står utan markering. |
+
+**Förbjudna ord.** Listorna står i [generering/categories.py](generering/categories.py). De tar med böjningsformer och vanliga sammansättningar, men inte felstavningar. Tre regler hindrar att kontrollen sorterar bort rimliga texter:
+
+- **Distraktorer** får innehålla ord från sin kategori.
+- **Ord med andra vanliga betydelser**, som "hälsa" i "hälsa på" och "kommunal" i "kommunal förskola", är förbjudna i implicita uppgifter men får stå i resten av texten.
+- **Ord som hör till två kategorier**, som "sexualbrott", räknas som markerade om de står i en explicit uppgift i någon av kategorierna.
+
+### Statistiken
+
+`pilot.stats.json` visar hur många svar som godkändes och sorterades bort. Siffrorna finns totalt, per skäl, per kombination av kategori och uttryckstyp, per typ av underrättelse och per AI-modell. Andelen bortsorterade räknas per svar och visar hur svårt det är att få AI:n att skriva en viss sorts text. Fältet `specar` visar hur många texter som beställdes, så att man ser om en kombination har fått för få godkända texter och behöver nya försök.
 
 ## Poängsättning
 

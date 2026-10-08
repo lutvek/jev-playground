@@ -18,8 +18,9 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from benchmark.generering.categories import CUES
 from benchmark.generering.prompt import build_prompt
-from benchmark.generering.resources import PLACEHOLDERS, Resources, placeholder_personnummer
+from benchmark.generering.resources import PLACEHOLDERS, PLACES, STREETS, Resources, placeholder_personnummer
 from benchmark.jsonl import write_jsonl
 from benchmark.schema.labels import CATEGORIES, EXPRESSIONS, SPLITS
 
@@ -37,10 +38,11 @@ CELLS = tuple(
 @dataclass(frozen=True)
 class ReportType:
     code: str
-    description: str
+    description: str  # med obestämd artikel, så att den kan stå direkt efter "Skriv"
     group: str  # privatperson, myndighet eller vård och skola
     reporters: tuple[str, ...]
     subjects: tuple[str, ...]
+    partners: tuple[str, ...]  # partner till den texten främst gäller
     others: tuple[str, ...]  # andra vuxna
     children: tuple[str, ...]  # barn får inga känsliga uppgifter
     tones: tuple[str, ...]
@@ -49,41 +51,45 @@ class ReportType:
 
 
 # Allmänna typer av underrättelser, tills vi vet vilka texterna ska efterlikna (avsnitt 9 i planen).
-# Avsändare som i sig avslöjar en kategori, som Kriminalvården och psykiatrin, är utelämnade.
+# Typer och avsändare som i sig avslöjar en kategori är utelämnade: Kriminalvården och psykiatrin,
+# och tips om fusk eller svartarbete, som är misstankar om brott.
 REPORT_TYPES = (
     ReportType(
         code="privat-oro",
-        description="orosanmälan till socialtjänsten från en privatperson, via webbformulär eller mejl",
+        description="en orosanmälan till socialtjänsten från en privatperson, via webbformulär eller mejl",
         group="privatperson",
         reporters=("granne", "släkting", "vän till familjen"),
         subjects=("granne", "förälder i en familj som avsändaren känner", "vuxen släkting"),
-        others=("partner till den anmälda", "förälder till den anmälda"),
+        partners=("partner till den anmälda",),
+        others=("förälder till den anmälda",),
         children=("barn till den anmälda",),
         tones=("vardaglig", "talspråklig", "orolig"),
         reporter_named=0.4,
         personnummer=0.1,
     ),
     ReportType(
-        code="privat-tips",
-        description="tips från en privatperson till en myndighet, till exempel Försäkringskassan eller "
-        "Skatteverket, om misstänkt felaktig ersättning eller svartarbete",
+        code="privat-klagomal",
+        description="ett klagomål från en privatperson till hyresvärden eller kommunen om en granne, till "
+        "exempel om störande ljud, nedskräpning eller att grannen inte tar hand om sin lägenhet",
         group="privatperson",
-        reporters=("granne", "tidigare kollega", "bekant"),
-        subjects=("granne", "bekant", "tidigare kollega"),
-        others=("partner till den anmälda", "arbetsgivare till den anmälda"),
+        reporters=("granne", "boende i samma hus"),
+        subjects=("granne", "boende i samma trappuppgång"),
+        partners=("partner till grannen",),
+        others=("vuxen som ofta besöker grannen",),
         children=(),
         tones=("vardaglig", "talspråklig", "upprörd"),
-        reporter_named=0.3,
-        personnummer=0.1,
+        reporter_named=0.5,
+        personnummer=0.05,
     ),
     ReportType(
         code="polis",
-        description="underrättelse från polisen till socialtjänsten om oro för en person, till exempel "
+        description="en underrättelse från polisen till socialtjänsten om oro för en person, till exempel "
         "efter ett larm från grannar eller en kontroll",
         group="myndighet",
         reporters=("polisinspektör", "polisassistent"),
         subjects=("vuxen som polisen har haft kontakt med", "förälder i ett hushåll där polisen varit"),
-        others=("partner till den underrättelsen gäller", "vuxen anhörig"),
+        partners=("partner till den underrättelsen gäller",),
+        others=("vuxet syskon till den underrättelsen gäller",),
         children=("barn i hushållet",),
         tones=("formell", "saklig"),
         reporter_named=0.8,
@@ -91,12 +97,13 @@ REPORT_TYPES = (
     ),
     ReportType(
         code="myndighet",
-        description="underrättelse från en myndighet, till exempel Försäkringskassan eller "
+        description="en underrättelse från en myndighet, till exempel Försäkringskassan eller "
         "Arbetsförmedlingen, till en annan myndighet",
         group="myndighet",
         reporters=("handläggare", "utredare"),
         subjects=("person som har ett ärende hos myndigheten",),
-        others=("anhörig", "arbetsgivare", "ombud"),
+        partners=("partner till den ärendet gäller",),
+        others=("arbetsgivare", "ombud"),
         children=(),
         tones=("formell", "saklig"),
         reporter_named=0.8,
@@ -104,11 +111,12 @@ REPORT_TYPES = (
     ),
     ReportType(
         code="skola",
-        description="orosanmälan till socialtjänsten från en förskola eller skola",
+        description="en orosanmälan till socialtjänsten från en förskola eller skola",
         group="vård och skola",
         reporters=("lärare", "förskollärare", "kurator", "rektor"),
         subjects=("förälder till ett barn i verksamheten",),
-        others=("den andra föräldern",),
+        partners=("den andra föräldern",),
+        others=("mor- eller farförälder till barnet",),
         children=("barnet i verksamheten",),
         tones=("formell", "saklig", "vardaglig"),
         reporter_named=0.7,
@@ -116,12 +124,13 @@ REPORT_TYPES = (
     ),
     ReportType(
         code="vard",
-        description="orosanmälan från hälso- och sjukvården, till exempel från BVC eller en vårdcentral, "
+        description="en orosanmälan från hälso- och sjukvården, till exempel från BVC eller en vårdcentral, "
         "om ett barns situation",
         group="vård och skola",
         reporters=("distriktssköterska", "läkare", "kurator"),
         subjects=("förälder till ett barn på BVC", "förälder till ett barn som har varit på vårdcentralen"),
-        others=("den andra föräldern", "vuxen anhörig"),
+        partners=("den andra föräldern",),
+        others=("mor- eller farförälder till barnet",),
         children=("barnet",),
         tones=("formell", "saklig"),
         reporter_named=0.7,
@@ -134,8 +143,14 @@ LENGTH_WEIGHTS = (4, 4, 2)
 N_FACTS_WEIGHTS = {1: 0.5, 2: 0.35, 3: 0.15}
 OTHER_PERSON = 0.5  # sannolikhet att texten har en tredje person
 OTHER_NAMED = 0.7
+ADDRESS = 0.5  # sannolikhet att specen anger en gatuadress
 TYPOS = 0.3  # sannolikhet för stavfel i texter från privatpersoner
 SUBJECT_WEIGHTS = {"SUBJECT": 7, "OTHER": 2, "REPORTER": 1}  # vem en känslig uppgift gäller
+MONTHS = (
+    "januari", "februari", "mars", "april", "maj", "juni",
+    "juli", "augusti", "september", "oktober", "november", "december",
+)
+OPPOSITE = {"kvinna": "man", "man": "kvinna"}
 
 
 class _Names:
@@ -157,7 +172,7 @@ class _Names:
         return self._draw(self.resources.male if gender == "pojke" else self.resources.female)
 
 
-def _person(person_id: str, role: str, description: str, gender: str, *, adult: bool = True) -> dict:
+def _person(person_id: str, role: str, description: str, gender: str | None, *, adult: bool = True) -> dict:
     return {
         "id": person_id,
         "role": role,
@@ -193,15 +208,16 @@ def sample_spec(
         subject["personnummer"] = placeholder_personnummer(rng, subject["gender"])
     persons = [reporter, subject]
 
+    other = None
     if rng.random() < OTHER_PERSON:
-        description = rng.choice(report.others + report.children)
+        description = rng.choice(report.partners + report.others + report.children)
         if description in report.children:
             other = _person("P2", "OTHER", description, rng.choice(("flicka", "pojke")), adult=False)
             other["name"] = names.first(other["gender"])
         else:
-            other = _person("P2", "OTHER", description, rng.choice(("kvinna", "man")))
-            if rng.random() < OTHER_NAMED:
-                other["name"] = names.full(other["gender"])
+            # En partners kön bestäms när uppgifterna är kända, se nedan.
+            gender = None if description in report.partners else rng.choice(("kvinna", "man"))
+            other = _person("P2", "OTHER", description, gender)
         persons.append(other)
 
     facts, distractors = [], []
@@ -224,12 +240,24 @@ def sample_spec(
             cell_counts[(category, expression)] += 1
             used.add(category)
             who = rng.choices(eligible, weights=weights)[0]
-            facts.append({"category": category, "expression": expression, "subject": who["id"]})
+            cue = rng.choice(CUES[(category, expression)])
+            facts.append({"category": category, "expression": expression, "subject": who["id"], "cue": cue})
+
+    if other is not None and other["adult"]:
+        if other["gender"] is None:
+            # Ett par av samma kön avslöjar sexuell läggning. Det får bara förekomma när specen
+            # har en uppgift om läggningen hos någon av de två.
+            couple = {"P1", "P2"}
+            same_sex = any(f["category"] == "SEXUALITY" and f["subject"] in couple for f in facts)
+            other["gender"] = subject["gender"] if same_sex else OPPOSITE[subject["gender"]]
+        if rng.random() < OTHER_NAMED:
+            other["name"] = names.full(other["gender"])
 
     length = rng.choices(LENGTHS, weights=LENGTH_WEIGHTS)[0]
     if len(facts) == 3 and length == "kort":
         length = "medel"
 
+    street = f"{rng.choice(STREETS)} {rng.randint(1, 60)}" if rng.random() < ADDRESS else None
     return {
         "scenario_id": scenario_id,
         "placeholders": resources.placeholder,
@@ -238,6 +266,9 @@ def sample_spec(
         "tone": rng.choice(report.tones),
         "typos": report.group == "privatperson" and rng.random() < TYPOS,
         "length": length,
+        "place": rng.choice(PLACES),
+        "address": street,
+        "date": f"{rng.randint(1, 28)} {rng.choice(MONTHS)} {rng.choice((2025, 2026))}",
         "persons": persons,
         "facts": facts,
         "distractors": distractors,

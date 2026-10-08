@@ -52,7 +52,8 @@ def _category_words(spec: dict, record: dict) -> list[Problem]:
 
     I ett implicit spann i samma kategori är de förbjudna. Utanför de explicita spannen tyder de
     på en uppgift som LLM:en har skrivit men inte märkt. Ett explicit spann i en annan kategori
-    räcker, eftersom ord som "sexualbrott" och "judisk" hör till två kategorier. Undantaget är
+    räcker, eftersom ord som "sexualbrott" och "judisk" hör till två kategorier. Ord med andra
+    vanliga betydelser, som "hälsa på", räknas bara i implicita spann. Undantaget är
     distraktorerna i negativa texter, som ska likna kategorin utan att avslöja något.
     """
     text, problems = record["text"], []
@@ -61,11 +62,12 @@ def _category_words(spec: dict, record: dict) -> list[Problem]:
         if category in spec["distractors"]:
             continue
         implicit = [s for s in record["sensitive"] if s["category"] == category and s not in explicit]
+        unambiguous = set(forbidden_matches(category, text, ambiguous=False))
         for start, end in forbidden_matches(category, text):
             word = text[start:end]
             if _covered(start, end, implicit):
                 problems.append(Problem("förbjudet-ord", f"{word!r} namnger {category} i ett implicit spann"))
-            elif not _covered(start, end, explicit):
+            elif (start, end) in unambiguous and not _covered(start, end, explicit):
                 message = f"{word!r} namnger {category} men står utanför de explicita spannen"
                 problems.append(Problem("omärkt-kategoriord", message))
     return problems
@@ -101,7 +103,9 @@ def _names(spec: dict, record: dict) -> list[Problem]:
     all_parts = {part for p in spec["persons"] if p["name"] for part in p["name"].split()}
     marked = _identifier_spans(record)
     for m in re.finditer(r"\w+", text):
-        if _name_part(m.group(), all_parts) in all_parts and not _covered(m.start(), m.end(), marked):
+        part = _name_part(m.group(), all_parts)
+        # Genitiv-s får stå utanför taggen: <PERSON P1>Erik</PERSON>s.
+        if part in all_parts and not _covered(m.start(), m.start() + len(part), marked):
             problems.append(Problem("omärkt-namn", f"{m.group()!r} på position {m.start()} är inte märkt"))
     return problems
 

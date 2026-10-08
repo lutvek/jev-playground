@@ -34,9 +34,15 @@ def test_whitespace_at_tag_edges_falls_outside_span():
     assert text[span.start : span.end] == "har astma"
 
 
+def test_lowercase_tags_are_parsed():
+    text, [span] = parse("Det gäller <person P1>Erik</Person>.")
+    assert text == "Det gäller Erik."
+    assert (span.label, span.person) == ("PERSON", "P1")
+
+
 def test_text_that_only_looks_like_tags_is_kept():
-    text, spans = parse("Betyg <3 och <br> är inte taggar.")
-    assert text == "Betyg <3 och <br> är inte taggar."
+    text, spans = parse("Betyg <3 och 2 < 5 är inte taggar.")
+    assert text == "Betyg <3 och 2 < 5 är inte taggar."
     assert spans == []
 
 
@@ -47,6 +53,8 @@ def test_text_that_only_looks_like_tags_is_kept():
         ("sjuk</HEALTH>", "saknar starttagg"),
         ("<HEALTH explicit P1><PERSON P1>Erik</HEALTH></PERSON>", "stänger <PERSON P1>"),
         ("<SJUK explicit P1>sjuk</SJUK>", "okänd tagg"),
+        ("Hej<br>då", "okänd tagg"),
+        ("<ETHNICITY explicit none>samisk</ETHNICITY>", "okända eller dubbla attribut"),
         ("<HEALTH P1>sjuk</HEALTH>", "både uttryckstyp och person"),
         ("<HEALTH explicit>sjuk</HEALTH>", "både uttryckstyp och person"),
         ("<HEALTH explicit P1 P2>sjuk</HEALTH>", "okända eller dubbla attribut"),

@@ -161,8 +161,9 @@ Varje text tas fram i fyra steg.
 - 1–3 personer och vilken roll var och en har
 - 1–3 känsliga uppgifter, och för varje uppgift kategori, om den ska sägas rakt ut eller inte, och vem den gäller
 - hur lång texten ska vara och vilken ton den ska ha, till exempel vardagligt språk eller enstaka stavfel
+- en ledtråd till varje uppgift, och en ort och ett datum, så att texterna inte blir likadana
 
-Namnen hämtas från SCB:s namnstatistik, så att de är vanliga svenska namn. Personnumren hämtas från Skatteverkets lista över testpersonnummer, som aldrig delas ut till riktiga personer.
+Namnen hämtas från SCB:s namnstatistik, så att de är vanliga svenska namn. Personnumren hämtas från Skatteverkets lista över testpersonnummer, som aldrig delas ut till riktiga personer. Tills källorna går att nå från molnmiljön används platshållare, se [benchmark/README.md](benchmark/README.md#platshållare-för-namn-och-personnummer).
 
 **Steg 2: AI:n skriver texten och markerar uppgifterna.** Varje känslig uppgift omges av en markering som anger kategori, uttryckstyp och person. Det kan se ut ungefär så här:
 
@@ -170,7 +171,7 @@ Namnen hämtas från SCB:s namnstatistik, så att de är vanliga svenska namn. P
 Jag skriver angående min granne <PERSON P1>Erik Lund</PERSON>. Han <RELIGION implicit P1>går i moskén varje fredag</RELIGION> men ...
 ```
 
-Personer och identifierare markeras på samma sätt. Exakt hur markeringarna ska se ut bestäms när generatorn byggs.
+Personer och identifierare markeras på samma sätt. Alla regler för markeringarna står i [benchmark/README.md](benchmark/README.md#markeringarna).
 
 **Steg 3: Ett program tar bort markeringarna.** Programmet noterar var varje markering stod, räknar ut start- och slutposition och tar sedan bort markeringarna ur texten. Kvar blir en vanlig text och ett facit i formatet ovan.
 
@@ -179,6 +180,8 @@ Personer och identifierare markeras på samma sätt. Exakt hur markeringarna ska
 ### Kontroll av att implicit verkligen är implicit
 
 En AI som ska skriva en uppgift som inte sägs rakt ut kan ändå råka skriva ut den. För att fånga det finns det en lista med förbjudna ord för varje kategori. För `RELIGION` står till exempel "muslim", "religion", "troende" och "kristen" på listan. Ett spann som är märkt som implicit får inte innehålla något av orden. Ett program kontrollerar det, så att uppgifterna verkligen är implicita och inte bara märkta så.
+
+Orden får inte heller stå omarkerade någon annanstans i texten. Det fångar känsliga uppgifter som AI:n har skrivit utan att markera dem. Undantaget är texterna som bara liknar känsliga, se nästa avsnitt.
 
 ### Texter som liknar känsliga men inte är det
 
@@ -270,7 +273,7 @@ De här begränsningarna ska stå tydligt när resultaten redovisas.
 |---|---|---|
 | 1 | **REDACT-SV:** hämta datasetet, göra om det till vårt format och koppla dess etiketter till våra koder. | Klart |
 | 2 | **Poängprogram och formatkontroll:** programmet som räknar poäng och programmet som kontrollerar att filer har rätt format. | Klart |
-| 3 | **Textgeneratorn:** programmet som slumpar fram beställningar, instruktionerna till AI:n, tolkningen av markeringarna och kontrollerna. Vi skriver först 50 provtexter, läser dem och justerar. | Inte påbörjat |
+| 3 | **Textgeneratorn:** programmet som slumpar fram beställningar, instruktionerna till AI:n, tolkningen av markeringarna och kontrollerna. Vi skriver först 50 provtexter, läser dem och justerar. | Pågår. Generatorn finns och har provkörts. Kvar är granskningen av en annan AI-modell (kontroll 3) och riktiga namn och personnummer. |
 | 4 | **Alla AI-skrivna texter:** test (av modell A och B), dev och train. | Inte påbörjat |
 | 5 | **PrivoNest-SV:** stickprov och konvertering till vårt format, när Hugging Face har öppnats. | Inte påbörjat |
 | 6 | **Två enkla referensmetoder** körs på allt för att testa att hela kedjan fungerar: en som letar efter ord ur en ordlista och en AI med skrivna instruktioner. Därefter börjar metodjämförelsen i fråga 2. | Inte påbörjat |
@@ -282,7 +285,7 @@ benchmark/
   README.md       datablad: delarna, storlek och kända brister
   schema/         beskrivning av formatet och programmet som kontrollerar det
   extern/         hämtning och konvertering av REDACT och PrivoNest
-  generering/     textgeneratorn (finns inte än)
+  generering/     textgeneratorn
   eval/           poängprogrammet
   data/           hämtade och genererade texter (sparas inte i repot)
 ```
