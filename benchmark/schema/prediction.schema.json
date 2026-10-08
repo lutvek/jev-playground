@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prediction.schema.json",
+  "title": "Prediktion",
+  "description": "En metods svar för en text. Offset räknas som i record.schema.json. Fält som metoden inte stöder utelämnas helt, så att den nivån inte poängsätts.",
+  "type": "object",
+  "required": ["id"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "categories": {
+      "description": "Kategorier som metoden anser finns i texten. Utelämnas fältet härleds det från sensitive.",
+      "type": "array",
+      "items": {"$ref": "record.schema.json#/$defs/category"},
+      "uniqueItems": true
+    },
+    "sensitive": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["start", "end", "category"],
+        "additionalProperties": false,
+        "properties": {
+          "start": {"$ref": "record.schema.json#/$defs/offset"},
+          "end": {"$ref": "record.schema.json#/$defs/offset"},
+          "category": {"$ref": "record.schema.json#/$defs/category"},
+          "subject": {
+            "description": "Vem uppgiften gäller: ett person-id ur facit (om metoden fick personlistan), en roll (till exempel REPORTER) eller personens namn som det står i texten.",
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "identifiers": {
+      "type": "array",
+      "items": {"$ref": "record.schema.json#/$defs/identifierSpan"}
+    }
+  }
+}

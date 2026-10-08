@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "record.schema.json",
+  "title": "Benchmarkpost",
+  "description": "En text med facit. Alla offset är Python-strängindex (Unicode-kodpunkter), start inklusive och end exklusive.",
+  "type": "object",
+  "required": ["id", "part", "source", "text", "entities", "sensitive"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "part": {"$ref": "#/$defs/part"},
+    "split": {"$ref": "#/$defs/split"},
+    "source": {
+      "description": "Ursprung. Fritt innehåll per del, till exempel generator och scenario_id för syntetiska texter.",
+      "type": "object"
+    },
+    "text": {"type": "string", "minLength": 1},
+    "entities": {
+      "description": "Personer i texten. Tom lista om datasetet saknar personkoppling.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "role", "mentions"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "role": {"$ref": "#/$defs/role"},
+          "mentions": {"type": "array", "items": {"$ref": "#/$defs/identifierSpan"}}
+        }
+      }
+    },
+    "identifiers": {
+      "description": "Identifierare som inte är knutna till en person i entities, till exempel platser och datum, eller alla identifierare i dataset utan personkoppling.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/identifierSpan"}
+    },
+    "sensitive": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["start", "end", "category", "expression", "subject"],
+        "additionalProperties": false,
+        "properties": {
+          "start": {"$ref": "#/$defs/offset"},
+          "end": {"$ref": "#/$defs/offset"},
+          "category": {"$ref": "#/$defs/category"},
+          "expression": {
+            "description": "null om datasetet inte anger uttryckstyp.",
+            "oneOf": [{"$ref": "#/$defs/expression"}, {"type": "null"}]
+          },
+          "subject": {
+            "description": "Id för den person i entities som uppgiften gäller. null om datasetet saknar personkoppling.",
+            "type": ["string", "null"]
+          },
+          "ignore": {
+            "description": "true om spannet nämner kategorin utan att avslöja något om en person, till exempel i en negation eller ett hypotetiskt exempel. Räknas varken som träff eller som falsklarm.",
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "part": {"enum": ["redact", "privonest", "synthetic"]},
+    "split": {"enum": ["test", "dev", "train"]},
+    "role": {"enum": ["REPORTER", "SUBJECT", "OTHER"]},
+    "expression": {"enum": ["explicit", "implicit"]},
+    "category": {
+      "enum": [
+        "HEALTH",
+        "ETHNICITY",
+        "POLITICS",
+        "RELIGION",
+        "TRADE_UNION",
+        "SEXUALITY",
+        "GENETIC_BIOMETRIC",
+        "CRIMINAL"
+      ]
+    },
+    "identifierType": {
+      "enum": [
+        "PERSON",
+        "PERSONNUMMER",
+        "PHONE",
+        "EMAIL",
+        "ADDRESS",
+        "LOCATION",
+        "ORGANISATION",
+        "DATE",
+        "IDENTIFIER"
+      ]
+    },
+    "offset": {"type": "integer", "minimum": 0},
+    "identifierSpan": {
+      "type": "object",
+      "required": ["start", "end", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "start": {"$ref": "#/$defs/offset"},
+        "end": {"$ref": "#/$defs/offset"},
+        "type": {"$ref": "#/$defs/identifierType"}
+      }
+    }
+  }
+}
