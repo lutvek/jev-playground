@@ -71,6 +71,8 @@ När testmaterialet finns jämför vi fyra typer av metoder:
 
 Vi mäter hur bra metoderna är för varje kategori för sig, och separat för uppgifter som sägs rakt ut och uppgifter som går att lista ut av sammanhanget.
 
+En genomgång av vilka angreppssätt som finns inom de här fyra typerna, och några som inte passar in i dem, står i [ANGREPPSSATT.md](ANGREPPSSATT.md).
+
 ### 3. Vad kostar de olika metoderna?
 
 Den metod som hittar mest är inte nödvändigtvis den bästa att använda. Vi jämför därför också:

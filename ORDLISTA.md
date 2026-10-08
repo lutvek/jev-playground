@@ -72,6 +72,30 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **Baslinje.** En enkel metod som andra metoder jämförs med. Om en avancerad metod inte slår baslinjen är den inte värd besväret.
 
+**Zero-shot och few-shot.** En metod som fungerar utan några exempel alls är *zero-shot*. En metod som bara behöver några få exempel per kategori är *few-shot*.
+
+**Lemmatisering.** Att föra tillbaka ett ord till dess grundform, så att till exempel "moskén" och "moskéerna" båda blir "moské".
+
+**Kontextregler.** Regler som avgör om en träff är nekad ("han är *inte* med i facket"), hypotetisk eller gäller någon annan än den texten handlar om. De mest kända heter *NegEx* och *ConText*.
+
+**Inbäddning.** En modell som gör om en mening till en lång lista med tal, en *vektor*, så att meningar med liknande betydelse får liknande tal. Används för att hitta meningar som betyder ungefär samma sak, även när de inte har några ord gemensamt.
+
+**SetFit.** Ett sätt att träna en inbäddningsmodell för en uppgift med bara några få exempel per kategori.
+
+**GLiNER.** En familj av små modeller som pekar ut bitar av texten för etiketter som man beskriver med vanliga ord, utan att först tränas på exempel.
+
+**Beslutsmodell (Jev).** En modell som inte skriver text utan svarar på frågor med fasta svarsalternativ, med en sannolikhet för varje alternativ. Jev, från företaget TypeSafe AI, är den mest kända. Laya är en öppen variant som kan köras i egen miljö.
+
+**Tokenklassificering och meningsklassificering.** Två sätt att ställa upp uppgiften för en encoder-modell. Vid *tokenklassificering* får varje ord en etikett, vilket ger exakta spann. Vid *meningsklassificering* får varje mening noll eller flera kategorier.
+
+**LoRA.** En billig metod för finjustering som bara ändrar en liten del av modellen.
+
+**Destillation.** Att träna en liten modell på svar från en stor, så att den lilla modellen lär sig göra ungefär samma sak till lägre kostnad.
+
+**Kaskad.** En kedja av metoder där en billig metod först sållar fram det som kan vara intressant, och en dyrare metod bara läser det som har sållats fram.
+
+**Svag övervakning (weak supervision).** Att låta flera ofullständiga metoder märka upp samma omärkta texter och sedan väga ihop deras svar till träningsdata.
+
 ## Data och format
 
 **Spann.** En avgränsad bit av texten, angiven med var den börjar och var den slutar.
@@ -88,7 +112,7 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **Prediktion.** En metods svar för en text: vilka känsliga uppgifter metoden tror finns och var.
 
-**Test, dev och train.** Tre separata högar med texter. *Train* används för att träna modeller. *Dev* används för att prova och justera under arbetets gång. *Test* låses och används bara vid slutmätningen. Om man justerar metoderna mot testtexterna blir resultatet för bra, eftersom metoderna då har anpassats till just de texterna.
+**Test, dev och train.** Tre separata högar med texter. *Train* används för att träna modeller. *Dev* används för att prova och justera under arbetets gång. *Test* låses och används bara vid slutmätningen. Om man justerar metoderna mot testtexterna blir resultatet för bra, eftersom metoderna då har anpassats till just de texterna. I den syntetiska delen finns bara test och dev, eftersom den bara har 400 texter.
 
 **Kodväxling.** När en text blandar språk, till exempel svenska och engelska i samma mening.
 

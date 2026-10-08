@@ -13,6 +13,7 @@ Källorna som planen bygger på står i [KALLOR.md](KALLOR.md). Begrepp som kan 
 - **Inga riktiga texter.** Vi använder inte texter från våra egna system.
 - **En extern AI-tjänst får skriva texter åt oss.** Eftersom texterna är påhittade innehåller de inga uppgifter om riktiga personer.
 - **Vi har tillgång till Google Cloud (GCP).** Där finns Vertex AI, där man kan anropa AI-modeller som Gemini och Claude, och Model Garden, en katalog med öppna modeller som vi kan köra själva. Vi har också egna GPU:er, den typ av datorkraft som behövs för att köra och träna modeller.
+- **Inga kinesiska grundmodeller.** Öppna modeller som bygger på kinesiska grundmodeller, som Qwen, används inte, varken som metoder eller för att skriva texter.
 
 ## Sammanfattning
 
@@ -24,7 +25,7 @@ Benchmarken består av tre delar:
 |---|---|---|---|
 | **REDACT-SV** | Färdigt dataset från GitHub | Namn, personnummer och andra identifierare, samt känsliga uppgifter som sägs rakt ut, framför allt hälsa och brott | 561 texter |
 | **PrivoNest-SV** | Färdigt dataset från Hugging Face, om kvaliteten håller | Alla känsliga kategorier, mest uppgifter som sägs rakt ut | ungefär 8 500 rader |
-| **Syntetisk** | Texter som en AI skriver på vår beställning | Det som saknas i de färdiga dataseten: uppgifter som går att lista ut av sammanhanget, i alla kategorier, i texter som liknar underrättelser och med uppgift om vem uppgiften gäller | ungefär 1 000 testtexter och 3 000 träningstexter |
+| **Syntetisk** | Texter som en AI skriver på vår beställning | Det som saknas i de färdiga dataseten: uppgifter som går att lista ut av sammanhanget, i alla kategorier, i texter som liknar underrättelser och med uppgift om vem uppgiften gäller | 400 texter: ungefär 300 för test och 100 för justering |
 
 I de två färdiga dataseten följer facit med datasetet. I den syntetiska delen följer facit med konstruktionen, se nedan.
 
@@ -143,7 +144,7 @@ Fyra saker är bra att känna till:
 
 PrivoNest är ett annat flerspråkigt, AI-skrivet dataset, som enligt sin beskrivning har ungefär 8 500 svenska rader med alla känsliga kategorier. Det ligger på Hugging Face, en webbplats som molnmiljön där vi arbetar i dag inte når. Den måste öppnas först.
 
-Planen är att läsa 20–30 slumpvis valda rader. Om kvaliteten håller använder vi datasetets svenska testdel som extra testmaterial och dess träningsdel för att träna encoder-modellerna (se ordlistan). Om kvaliteten inte håller stryks datasetet.
+Planen är att läsa 20–30 slumpvis valda rader. Om kvaliteten håller använder vi datasetets svenska testdel som extra testmaterial och dess träningsdel för att träna encoder-modellerna (se ordlistan). Träningsdelen är då den enda större källan till träningsdata, eftersom den syntetiska delen bara har 400 texter. Den innehåller dock mest uppgifter som sägs rakt ut. Om kvaliteten inte håller stryks datasetet.
 
 ### Engelska dataset
 
@@ -197,23 +198,31 @@ Nekanden, som "han är inte medlem i facket", tas inte med i PoC:n. Det är okla
 
 ### Storlek och uppdelning
 
-Texterna delas upp i tre högar som används till olika saker:
+Den syntetiska delen består av 400 texter som har klarat kontrollerna i avsnitt 5. De delas upp i två högar:
 
 | Hög | Storlek | Skrivs av | Används till |
 |---|---|---|---|
-| Test | ungefär 1 000 texter, med minst 50 exempel per kategori och uttryckstyp | Hälften av modell A, hälften av modell B | Låst. Används bara vid slutmätningen. |
-| Dev | ungefär 200 texter | Modell A | Prova och justera instruktioner och gränsvärden under arbetets gång. |
-| Train | ungefär 3 000 texter | Bara modell A | Träna klassificerare och encoder-modeller. |
+| Test | ungefär 300 texter | Hälften av modell A, hälften av modell B | Låst. Används bara vid slutmätningen. |
+| Dev | ungefär 100 texter | Bara modell A | Exempel till metoder som behöver några få exempel, och för att prova och justera instruktioner och gränsvärden under arbetets gång. |
+
+Det finns ingen egen hög för träning (`train`) i den syntetiska delen. 400 texter räcker inte för att både träna och testa metoder som behöver tusentals exempel. Därför ligger tyngdpunkten på metoder som klarar sig utan exempel eller med några få, se [ANGREPPSSATT.md](ANGREPPSSATT.md). Metoder som behöver mer träningsdata kan tränas på PrivoNest, om det håller.
+
+Generatorn slumpar fram beställningarna så att varje kombination av kategori och uttryckstyp får ungefär lika många exempel. Genetiska och biometriska uppgifter tas bara med som explicita, eftersom de nästan aldrig uttrycks implicit. Det ger 15 kombinationer.
 
 **Varför testtexterna är låsta.** Om man justerar en metod tills den blir bra på testtexterna mäter man till slut hur väl metoden har anpassats till just de texterna, inte hur bra den är i allmänhet. Därför justerar vi bara mot dev-texterna och tittar på testtexterna först vid slutmätningen.
 
-**Varför två olika AI-modeller skriver testtexterna.** Varje AI-modell har sin egen stil. En metod som tränas på texter från modell A kan lära sig känna igen modell A:s stil i stället för de känsliga uppgifterna. Träningstexterna kommer därför bara från modell A, medan testtexterna kommer från både A och B. Om en metod är mycket bättre på A:s testtexter än på B:s har den lärt sig stilen och inte uppgiften.
+**Varför två olika AI-modeller skriver testtexterna.** Varje AI-modell har sin egen stil. En metod som får exempel från modell A kan lära sig känna igen modell A:s stil i stället för de känsliga uppgifterna. Dev-texterna, som metoderna får exempel ur, kommer därför bara från modell A, medan testtexterna kommer från både A och B. Om en metod är mycket bättre på A:s testtexter än på B:s har den lärt sig stilen och inte uppgiften.
 
-**Varför minst 50 exempel per kategori räcker.** Med 50 exempel blir osäkerheten i ett resultat ungefär plus minus 0,11–0,14. Om en metod hittar 40 av 50 (recall 0,80) ligger det verkliga värdet alltså troligen någonstans mellan 0,69 och 0,91. Det är för grovt för att skilja metoder som är nästan lika bra, men tillräckligt för att se tydliga skillnader, och det är vad en PoC behöver.
+**Hur säkra resultaten blir.** Ungefär en fjärdedel av testtexterna saknar känsliga uppgifter. Resten har 1–3 uppgifter var. Det ger ungefär 350–450 känsliga uppgifter i testtexterna, fördelade på 15 kombinationer, alltså ungefär 20–30 exempel i varje kombination.
+
+- **Per kategori och uttryckstyp** blir osäkerheten ungefär plus minus 0,15. Om en metod hittar 20 av 25 (recall 0,80) ligger det verkliga värdet troligen någonstans mellan 0,61 och 0,91. Det räcker bara för att se mycket stora skillnader.
+- **För alla kategorier tillsammans** blir det ungefär 150–200 explicita och lika många implicita uppgifter. Då blir osäkerheten ungefär plus minus 0,06. Det räcker för att se vilka metoder som är bättre än andra, och hur mycket sämre de är på implicita uppgifter.
+
+Huvudjämförelsen görs därför över alla kategorier tillsammans. Resultaten per kategori redovisas, men bara som en fingervisning.
 
 ### Vilka AI-modeller som används
 
-- **För att skriva texterna** använder vi en stark modell via Vertex AI, där både Gemini och Claude finns. Det viktigaste är att den skriver bra svenska. Kostnaden blir låg, eftersom det handlar om några tusen korta texter.
+- **För att skriva texterna** använder vi en stark modell via Vertex AI, där både Gemini och Claude finns. Det viktigaste är att den skriver bra svenska. Kostnaden blir låg, eftersom det handlar om några hundra korta texter.
 - **Modell A och modell B** ska komma från olika tillverkare. Om en av dem också testas som metod redovisar vi det, eftersom en modell kan ha en fördel när den ska analysera texter som den själv har skrivit.
 - **Öppna modeller**, som vi kan köra via Model Garden eller på egna GPU:er, passar bättre att testa som metoder än att använda för att skriva texter. De motsvarar alternativet att köra analysen i vår egen miljö i stället för hos en extern leverantör, vilket är en av avvägningarna i fråga 3.
 
@@ -237,7 +246,7 @@ Vi redovisar hur stor andel av texterna som sorteras bort i varje kategori. Det 
 
 Samma poängprogram används för alla metoder och alla delar, så att resultaten går att jämföra.
 
-**Huvudmått: recall per kategori på dokumentnivå.** För varje kategori räknar vi hur stor andel av de texter som innehåller kategorin som metoden har flaggat för just den kategorin. Det redovisas separat för uppgifter som sägs rakt ut och uppgifter som går att lista ut av sammanhanget. Precision, alltså hur stor andel av metodens flaggningar som var rätt, redovisas bredvid.
+**Huvudmått: recall per kategori på dokumentnivå.** För varje kategori räknar vi hur stor andel av de texter som innehåller kategorin som metoden har flaggat för just den kategorin. Det redovisas separat för uppgifter som sägs rakt ut och uppgifter som går att lista ut av sammanhanget. Precision, alltså hur stor andel av metodens flaggningar som var rätt, redovisas bredvid. Med 400 syntetiska texter blir resultaten per kategori osäkra, så metoderna jämförs i första hand med medelvärdet över alla kategorier (avsnitt 4).
 
 **Kompletterande mått:**
 
@@ -254,10 +263,10 @@ Samma poängprogram används för alla metoder och alla delar, så att resultate
 **Den kan visa:**
 
 - vilka metoder som är bättre och sämre än andra
-- hur mycket sämre metoderna är på uppgifter som går att lista ut av sammanhanget än på uppgifter som sägs rakt ut, per kategori
+- hur mycket sämre metoderna är på uppgifter som går att lista ut av sammanhanget än på uppgifter som sägs rakt ut, för alla kategorier tillsammans och grovt per kategori
 - vad metoderna kostar, hur snabba de är och om de kan köras i vår egen miljö (fråga 3)
 
-**Den kan inte visa** hur bra metoderna är på riktiga underrättelser. Alla testtexter är antingen AI-skrivna eller hämtade från andra sammanhang.
+**Den kan inte visa** hur bra metoderna är på riktiga underrättelser. Alla testtexter är antingen AI-skrivna eller hämtade från andra sammanhang. Den kan inte heller visa säkra skillnader mellan metoder inom en enskild kategori, eftersom det finns för få exempel per kategori.
 
 Tre enkla kontroller ger ändå en fingervisning:
 
@@ -274,7 +283,7 @@ De här begränsningarna ska stå tydligt när resultaten redovisas.
 | 1 | **REDACT-SV:** hämta datasetet, göra om det till vårt format och koppla dess etiketter till våra koder. | Klart |
 | 2 | **Poängprogram och formatkontroll:** programmet som räknar poäng och programmet som kontrollerar att filer har rätt format. | Klart |
 | 3 | **Textgeneratorn:** programmet som slumpar fram beställningar, instruktionerna till AI:n, tolkningen av markeringarna och kontrollerna. Vi skriver först 50 provtexter, läser dem och justerar. | Pågår. Generatorn finns och har provkörts. Kvar är granskningen av en annan AI-modell (kontroll 3) och riktiga namn och personnummer. |
-| 4 | **Alla AI-skrivna texter:** test (av modell A och B), dev och train. | Inte påbörjat |
+| 4 | **Alla AI-skrivna texter:** 400 texter, uppdelade på test (av modell A och B) och dev. | Inte påbörjat |
 | 5 | **PrivoNest-SV:** stickprov och konvertering till vårt format, när Hugging Face har öppnats. | Inte påbörjat |
 | 6 | **Två enkla referensmetoder** körs på allt för att testa att hela kedjan fungerar: en som letar efter ord ur en ordlista och en AI med skrivna instruktioner. Därefter börjar metodjämförelsen i fråga 2. | Inte påbörjat |
 
