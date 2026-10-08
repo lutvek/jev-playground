@@ -13,6 +13,7 @@ Källorna som planen bygger på står i [KALLOR.md](KALLOR.md). Begrepp som kan 
 - **Inga riktiga texter.** Vi använder inte texter från våra egna system.
 - **En extern AI-tjänst får skriva texter åt oss.** Eftersom texterna är påhittade innehåller de inga uppgifter om riktiga personer.
 - **Vi har tillgång till Google Cloud (GCP).** Där finns Vertex AI, där man kan anropa AI-modeller som Gemini och Claude, och Model Garden, en katalog med öppna modeller som vi kan köra själva. Vi har också egna GPU:er, den typ av datorkraft som behövs för att köra och träna modeller.
+- **Inga kinesiska grundmodeller.** Öppna modeller som bygger på kinesiska grundmodeller, som Qwen, används inte, varken som metoder eller för att skriva texter.
 
 ## Sammanfattning
 
