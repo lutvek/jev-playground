@@ -12,7 +12,7 @@ Källorna som planen bygger på står i [KALLOR.md](KALLOR.md). Begrepp som kan 
 - **Ingen handmärkning.** Ingen människa ska behöva gå igenom texter och märka ut var de känsliga uppgifterna står.
 - **Inga riktiga texter.** Vi använder inte texter från våra egna system.
 - **En extern AI-tjänst får skriva texter åt oss.** Eftersom texterna är påhittade innehåller de inga uppgifter om riktiga personer.
-- **Vi har tillgång till Google Cloud (GCP).** Där finns Vertex AI, där man kan anropa AI-modeller som Gemini och Claude, och Model Garden, en katalog med öppna modeller som vi kan köra själva. Vi har också egna GPU:er, den typ av datorkraft som behövs för att köra och träna modeller.
+- **Vi har tillgång till Google Cloud (GCP).** Där finns Vertex AI, Googles tjänst för AI-modeller. Via dess modellkatalog Model Garden kan vi både anropa modeller som Gemini och Claude och köra öppna modeller i vårt eget projekt. Vi har också egna GPU:er, den typ av datorkraft som behövs för att köra och träna modeller.
 
 ## Sammanfattning
 
@@ -24,11 +24,11 @@ Benchmarken består av tre delar:
 |---|---|---|---|
 | **REDACT-SV** | Färdigt dataset från GitHub | Namn, personnummer och andra identifierare, samt känsliga uppgifter som sägs rakt ut, framför allt hälsa och brott | 561 texter |
 | **PrivoNest-SV** | Färdigt dataset från Hugging Face, om kvaliteten håller | Alla känsliga kategorier, mest uppgifter som sägs rakt ut | ungefär 8 500 rader |
-| **Syntetisk** | Texter som en AI skriver på vår beställning | Det som saknas i de färdiga dataseten: uppgifter som går att lista ut av sammanhanget, i alla kategorier, i texter som liknar underrättelser och med uppgift om vem uppgiften gäller | ungefär 1 000 testtexter och 3 000 träningstexter |
+| **Syntetisk** | Texter som en AI skriver på vår beställning | Det som saknas i de färdiga dataseten: uppgifter som går att lista ut av sammanhanget, i alla kategorier, i texter som liknar underrättelser och där det framgår vem varje uppgift gäller | ungefär 1 000 testtexter och 3 000 träningstexter |
 
 I de två färdiga dataseten följer facit med datasetet. I den syntetiska delen följer facit med konstruktionen, se nedan.
 
-**Varför vi måste skriva egna texter.** Inget färdigt dataset, på något språk, innehåller känsliga uppgifter som går att lista ut av sammanhanget utan att sägas rakt ut. Det är just de uppgifterna som dagens verktyg missar, och skillnaden mellan dem och de uppgifter som sägs rakt ut är kärnan i forskningsfrågan.
+**Varför vi måste skriva egna texter.** Inget färdigt dataset, på något språk, innehåller känsliga uppgifter om identifierbara personer som går att lista ut av sammanhanget utan att sägas rakt ut. Det är just de uppgifterna som dagens verktyg missar, och skillnaden mellan dem och de uppgifter som sägs rakt ut är kärnan i forskningsfrågan.
 
 **Varför ingen behöver märka upp texterna.** Vi bestämmer först vad en text ska innehålla, till exempel "en uppgift om religion om grannen, som inte sägs rakt ut". Sedan ber vi AI:n skriva texten och markera var uppgiften står. Facit finns alltså redan innan texten är skriven. Därefter kontrollerar vi automatiskt att texten verkligen stämmer med facit (avsnitt 5).
 
@@ -103,7 +103,7 @@ Texten innehåller två känsliga uppgifter om P1, och ingen av dem sägs rakt u
 - "går i moskén varje fredag" avslöjar religion.
 - "har sedan i våras slutat äta och verkar mycket nedstämd" avslöjar något om hälsan.
 
-**Positioner i texten.** Var en uppgift står anges med två tal, `start` och `end`. De räknar tecken från textens början, där första tecknet har nummer 0. `start` är det första tecknet som ingår och `end` är det första tecknet som *inte* ingår. I exemplet är `start` 47 och `end` 72 tecknen 47 till och med 71, alltså "går i moskén varje fredag". En sådan avgränsad bit av texten kallas ett *spann*.
+**Positioner i texten.** Var en uppgift står anges med två tal, `start` och `end`. De räknar tecken från textens början, där första tecknet har nummer 0. `start` är det första tecknet som ingår och `end` är det första tecknet som *inte* ingår. I exemplet betyder `start` 47 och `end` 72 tecknen 47 till och med 71, alltså "går i moskén varje fredag". En sådan avgränsad bit av texten kallas ett *spann*.
 
 ### Fälten
 
@@ -118,7 +118,7 @@ Texten innehåller två känsliga uppgifter om P1, och ingen av dem sägs rakt u
 | `identifiers` | Identifierare som inte hör till någon särskild person, till exempel orter och datum. I dataset som inte anger vem uppgifterna gäller ligger alla identifierare här. |
 | `sensitive` | De känsliga uppgifterna. Var och en har position, kategori, om den är explicit eller implicit (`expression`) och vem den gäller (`subject`). |
 
-Ett känsligt spann kan också ha `ignore: true`. Det betyder att kategorin nämns i texten utan att något avslöjas om en person, till exempel "han är *inte* medlem i facket". Ett sådant spann räknas inte alls när poängen räknas ut: en metod som flaggar det gör inte fel, och en metod som missar det gör inte heller fel.
+Ett känsligt spann kan också ha `ignore: true`. Det betyder att kategorin nämns i texten utan att något avslöjas om en person, till exempel "han är *inte* medlem i facket". Ett sådant spann räknas inte alls när poängen räknas ut: en metod som flaggar det gör inte fel, och en metod som missar det gör inte heller fel. Våra egna texter innehåller inga sådana nekanden (se avsnitt 4), men flaggan behövs för de färdiga dataseten, där de förekommer.
 
 Om en text innehåller en viss kategori eller inte (*dokumentnivå*) står inte som ett eget fält. Det räknas ut från spannen.
 
@@ -137,11 +137,11 @@ Fyra saker är bra att känna till:
 - **Bara uppgifter som sägs rakt ut.** Datasetet säger därför inget om hur bra metoder är på uppgifter som går att lista ut av sammanhanget.
 - **Etiketterna sitter på ord, inte på personer.** Ett partinamn är märkt som politik även när texten inte säger något om någons politiska åsikt, till exempel när partiet bara nämns i förbigående. Därför används datasetet främst för identifierare, hälsa och brott. Resultat för övriga kategorier redovisas med en reservation.
 - **Många texter blandar språk.** Bara 244 av texterna är helt på svenska. Resten blandar in engelska eller andra språk. Resultaten redovisas både för alla texter och för de helt svenska.
-- **Få exempel utanför hälsa och brott.** Efter konverteringen räknas 147 texter som att de innehåller något känsligt. (De övriga 10 av de 157 innehåller bara uppgifter som REDACT själv markerar som "avslöjar inget", till exempel nekanden.) Bland de helt svenska texterna finns politik i 6 texter, fack i 3, religion i 1 och sexuell läggning i ingen. Det räcker för att mäta hälsa, och med stor osäkerhet brott, men inte de andra kategorierna.
+- **Få exempel utanför hälsa och brott.** Efter konverteringen räknas 147 texter som positiva, alltså som texter med minst en känslig uppgift. (De övriga 10 av de 157 innehåller bara uppgifter som REDACT själv markerar som "avslöjar inget", till exempel nekanden.) Bland de helt svenska texterna finns politik i 6 texter, fack i 3, religion i 1 och sexuell läggning i ingen. Det räcker för att mäta hälsa, och med stor osäkerhet brott, men inte de andra kategorierna.
 
 ### PrivoNest-SV
 
-PrivoNest är ett annat flerspråkigt, AI-skrivet dataset, som enligt sin beskrivning har ungefär 8 500 svenska rader med alla känsliga kategorier. Det ligger på Hugging Face, en webbplats som molnmiljön där vi arbetar i dag inte når. Den måste öppnas först.
+PrivoNest är ett annat flerspråkigt, AI-skrivet dataset, som enligt sin beskrivning har ungefär 8 500 svenska rader med alla känsliga kategorier. Det ligger på Hugging Face, en webbplats som molnmiljön där vi arbetar i dag inte når. Åtkomsten till Hugging Face måste öppnas först.
 
 Planen är att läsa 20–30 slumpvis valda rader. Om kvaliteten håller använder vi datasetets svenska testdel som extra testmaterial och dess träningsdel för att träna encoder-modellerna (se ordlistan). Om kvaliteten inte håller stryks datasetet.
 
@@ -200,18 +200,18 @@ Texterna delas upp i tre högar som används till olika saker:
 |---|---|---|---|
 | Test | ungefär 1 000 texter, med minst 50 exempel per kategori och uttryckstyp | Hälften av modell A, hälften av modell B | Låst. Används bara vid slutmätningen. |
 | Dev | ungefär 200 texter | Modell A | Prova och justera instruktioner och gränsvärden under arbetets gång. |
-| Train | ungefär 3 000 texter | Bara modell A | Träna klassificerare och encoder-modeller. |
+| Train | ungefär 3 000 texter | Bara modell A | Träna de metoder som lär sig av exempel: statistiska klassificerare och encoder-modeller (se fråga 2 i [FORSKNINGSFRAGA.md](FORSKNINGSFRAGA.md)). |
 
 **Varför testtexterna är låsta.** Om man justerar en metod tills den blir bra på testtexterna mäter man till slut hur väl metoden har anpassats till just de texterna, inte hur bra den är i allmänhet. Därför justerar vi bara mot dev-texterna och tittar på testtexterna först vid slutmätningen.
 
 **Varför två olika AI-modeller skriver testtexterna.** Varje AI-modell har sin egen stil. En metod som tränas på texter från modell A kan lära sig känna igen modell A:s stil i stället för de känsliga uppgifterna. Träningstexterna kommer därför bara från modell A, medan testtexterna kommer från både A och B. Om en metod är mycket bättre på A:s testtexter än på B:s har den lärt sig stilen och inte uppgiften.
 
-**Varför minst 50 exempel per kategori räcker.** Med 50 exempel blir osäkerheten i ett resultat ungefär plus minus 0,11–0,14. Om en metod hittar 40 av 50 (recall 0,80) ligger det verkliga värdet alltså troligen någonstans mellan 0,69 och 0,91. Det är för grovt för att skilja metoder som är nästan lika bra, men tillräckligt för att se tydliga skillnader, och det är vad en PoC behöver.
+**Varför minst 50 exempel per kategori räcker.** Med 50 exempel blir osäkerheten i ett resultat ungefär plus minus 0,11–0,14. Om en metod hittar 40 av 50 får den en *recall*, alltså andel hittade, på 0,80. Det verkliga värdet då troligen någonstans mellan 0,69 och 0,91. Det är för grovt för att skilja metoder som är nästan lika bra, men tillräckligt för att se tydliga skillnader, och det är vad en PoC behöver.
 
 ### Vilka AI-modeller som används
 
 - **För att skriva texterna** använder vi en stark modell via Vertex AI, där både Gemini och Claude finns. Det viktigaste är att den skriver bra svenska. Kostnaden blir låg, eftersom det handlar om några tusen korta texter.
-- **Modell A och modell B** ska komma från olika tillverkare. Om en av dem också testas som metod redovisar vi det, eftersom en modell kan ha en fördel när den ska analysera texter som den själv har skrivit.
+- **Modell A och modell B** ska komma från olika modellfamiljer, till exempel en Gemini-modell och en Claude-modell. Om en av dem också testas som metod redovisar vi det, eftersom en modell kan ha en fördel när den ska analysera texter som den själv har skrivit.
 - **Öppna modeller**, som vi kan köra via Model Garden eller på egna GPU:er, passar bättre att testa som metoder än att använda för att skriva texter. De motsvarar alternativet att köra analysen i vår egen miljö i stället för hos en extern leverantör, vilket är en av avvägningarna i fråga 3.
 
 ## 5. Kvalitetskontroll utan handmärkning
@@ -220,13 +220,13 @@ Eftersom ingen människa läser texterna kontrolleras varje AI-skriven text auto
 
 1. **Formatkontroll.** Markeringarna går att tolka, positionerna stämmer och alla uppgifter som beställdes i scenariospecen finns med.
 2. **Förbjudna ord.** Inga implicita spann innehåller ord som avslöjar kategorin rakt ut (se ovan).
-3. **Granskning av en annan AI-modell.** En AI från en annan tillverkare än den som skrev texten får läsa texten och facit, och svara på två frågor:
+3. **Granskning av en annan AI-modell.** En AI från en annan modellfamilj än den som skrev texten får läsa texten och facit, och svara på två frågor:
    - Avslöjar varje markerad bit verkligen den angivna kategorin om den angivna personen?
    - Finns det känsliga uppgifter i texten som inte är markerade?
 
 Vi redovisar hur stor andel av texterna som sorteras bort i varje kategori. Det visar vilka kategorier som är svåra att få AI:n att skriva bra texter om.
 
-**En känd risk.** Granskningen kan sortera bort texter där uppgiften är så subtil att granskaren inte uppfattar den. Då blir de kvarvarande testtexterna något lättare för AI-baserade metoder, eftersom de mest svårfångade fallen har försvunnit. Risken minskar av att granskaren får se facit och bara ska bedöma det, i stället för att själv leta efter uppgifterna. Helt borta är den inte.
+**En känd risk.** Granskningen kan sortera bort texter där uppgiften är så subtil att granskaren inte uppfattar den. Då blir de kvarvarande testtexterna något lättare för metoder som bygger på LLM:er, eftersom de mest svårfångade fallen har försvunnit. Risken minskar av att granskaren får se facit och bara ska bedöma det, i stället för att själv leta efter uppgifterna. Helt borta är den inte.
 
 **En frivillig stickprovskontroll.** Om någon kan läsa 30 slumpvis valda texter, vilket tar ungefär en timme, får vi en grov uppfattning om hur bra facit är. Det är inget krav men rekommenderas.
 
@@ -238,7 +238,7 @@ Samma poängprogram används för alla metoder och alla delar, så att resultate
 
 **Kompletterande mått:**
 
-- **Spannivå:** pekar metoden också ut rätt ställe i texten? Det räcker att metodens spann överlappar facit.
+- **Spannivå:** pekar metoden också ut rätt ställe i texten? Det räcker att metodens spann har samma kategori och överlappar facit.
 - **Rätt person:** kopplar metoden uppgiften till rätt person? Kan bara mätas i den syntetiska delen, eftersom de färdiga dataseten inte anger vem uppgifterna gäller.
 - **Identifierare:** hittar metoden namn, personnummer och liknande? Mäts främst i REDACT.
 
@@ -251,10 +251,10 @@ Samma poängprogram används för alla metoder och alla delar, så att resultate
 **Den kan visa:**
 
 - vilka metoder som är bättre och sämre än andra
-- hur mycket sämre metoderna är på uppgifter som går att lista ut av sammanhanget än på uppgifter som sägs rakt ut, per kategori
+- hur stort glappet är mellan uppgifter som sägs rakt ut och uppgifter som går att lista ut av sammanhanget, per kategori
 - vad metoderna kostar, hur snabba de är och om de kan köras i vår egen miljö (fråga 3)
 
-**Den kan inte visa** hur bra metoderna är på riktiga underrättelser. Alla testtexter är antingen AI-skrivna eller hämtade från andra sammanhang.
+**Den kan inte visa** hur bra metoderna är på riktiga underrättelser. Alla testtexter är AI-skrivna, och de färdiga dataseten är dessutom skrivna för andra sammanhang än våra.
 
 Tre enkla kontroller ger ändå en fingervisning:
 
@@ -273,7 +273,7 @@ De här begränsningarna ska stå tydligt när resultaten redovisas.
 | 3 | **Textgeneratorn:** programmet som slumpar fram beställningar, instruktionerna till AI:n, tolkningen av markeringarna och kontrollerna. Vi skriver först 50 provtexter, läser dem och justerar. | Inte påbörjat |
 | 4 | **Alla AI-skrivna texter:** test (av modell A och B), dev och train. | Inte påbörjat |
 | 5 | **PrivoNest-SV:** stickprov och konvertering till vårt format, när Hugging Face har öppnats. | Inte påbörjat |
-| 6 | **Två enkla referensmetoder** körs på allt för att testa att hela kedjan fungerar: en som letar efter ord ur en ordlista och en AI med skrivna instruktioner. Därefter börjar metodjämförelsen i fråga 2. | Inte påbörjat |
+| 6 | **Två enkla baslinjer**, alltså referensmetoder, körs på allt för att testa att hela kedjan fungerar: en som letar efter ord ur en ordlista och en AI med skrivna instruktioner. Därefter börjar metodjämförelsen i fråga 2. | Inte påbörjat |
 
 ### Mappar i repot
 
@@ -289,6 +289,6 @@ benchmark/
 
 ## 9. Öppna frågor
 
-1. **Var ska texterna genereras?** Antingen i molnmiljön där vi arbetar med repot, vilket kräver en GCP-nyckel som hemlighet och att miljön får nå Vertex AI, eller som ett program som körs direkt i GCP.
-2. **Vilka AI-modeller finns i ert GCP-projekt,** och i vilken region och med vilka kvoter? Svaret avgör vilka modeller som kan bli A och B, och vilka AI-modeller som kan testas som metoder.
+1. **Var ska texterna genereras?** Antingen i molnmiljön där vi arbetar med repot, eller som ett program som körs direkt i GCP. Det första kräver att molnmiljön får en nyckel till GCP, sparad som en hemlig inställning, och att den får nå Vertex AI.
+2. **Vilka AI-modeller finns i ert GCP-projekt,** i vilken region (var i världen de körs) och med vilka kvoter (hur mycket vi får använda dem)? Svaret avgör vilka modeller som kan bli A och B, och vilka AI-modeller som kan testas som metoder.
 3. **Vilka sorters underrättelser ska texterna likna?** Om vi inte får något svar väljer vi några allmänna typer: underrättelser från myndigheter, från privatpersoner och från vård och skola.

@@ -40,7 +40,7 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **Pseudonymisering.** Att byta ut namn och andra identifierare i en text mot påhittade, så att texten inte längre pekar ut riktiga personer.
 
-**PEP (person i politiskt utsatt ställning).** En person med ett viktigt offentligt uppdrag, till exempel en minister. Begreppet kommer från reglerna mot penningtvätt och säger inget om personens politiska åsikter.
+**PEP (person i politiskt utsatt ställning).** En person med ett viktigt offentligt uppdrag, till exempel en minister. Begreppet kommer från reglerna mot penningtvätt och är inte detsamma som en politisk åsikt.
 
 ## Metoder
 
@@ -62,15 +62,15 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **Finjustering.** Att träna en befintlig modell vidare på egna exempel, så att den blir bättre på just vår uppgift.
 
-**Generator.** Den LLM som skriver de syntetiska texterna. I planen används två, *modell A* och *modell B*, från olika tillverkare.
+**Generator.** Den LLM som skriver de syntetiska texterna. I planen används två, *modell A* och *modell B*, från olika modellfamiljer, till exempel en Gemini-modell och en Claude-modell. Ordet används också om hela programmet som tar fram texterna.
 
-**Verifierare.** En LLM från en annan tillverkare än generatorn som granskar de syntetiska texterna och deras facit.
+**Granskare (verifierare).** En LLM från en annan modellfamilj än generatorn som granskar de syntetiska texterna och deras facit.
 
-**Baslinje.** En enkel metod som andra metoder jämförs med. Om en avancerad metod inte slår baslinjen är den inte värd besväret.
+**Baslinje (referensmetod).** En enkel metod som andra metoder jämförs med. Den visar hur mycket en mer avancerad metod tillför. I poängprogrammet heter flaggan för jämförelsen `--baseline`, och där kan det vara vilken annan metod som helst.
 
 ## Data och format
 
-**Spann.** En avgränsad bit av texten, angiven med var den börjar och var den slutar.
+**Spann.** En avgränsad bit av texten, angiven med var den börjar och var den slutar. Kallas ibland också *textbit*.
 
 **Offset.** En position i texten, räknad i antal tecken från början. Första tecknet har offset 0. Ett spann med `start` 4 och `end` 9 omfattar tecknen på plats 4, 5, 6, 7 och 8, alltså inte tecknet på plats 9.
 
@@ -90,7 +90,9 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **Checksumma.** Ett slags fingeravtryck av en fil. Ändras ett enda tecken i filen blir checksumman en helt annan, så den visar att man har fått exakt rätt fil.
 
-**Commit.** En sparad version av ett kodförråd i versionshanteringssystemet git. Att hänvisa till en commit är att hänvisa till exakt den versionen.
+**Repo.** Ett kodförråd: en mapp med kod och dokument där alla ändringar sparas med versionshanteringssystemet git. Det här repot heter jev-playground. *Rotmappen* är den översta mappen i repot.
+
+**Commit.** En sparad version av ett repo. Att hänvisa till en commit är att hänvisa till exakt den versionen.
 
 ## Mått
 
@@ -108,13 +110,13 @@ Recall och precision drar åt olika håll. En metod som flaggar allt får full r
 
 **IoU (intersection over union).** Ett mått på hur väl två spann överlappar: längden på den gemensamma delen delat med längden på hela området som de två spannen täcker tillsammans. 1 betyder att de är exakt lika, 0 att de inte möts alls.
 
-**Makromedelvärde (`MACRO`).** Medelvärdet av ett mått över alla kategorier, där varje kategori väger lika mycket oavsett hur vanlig den är. Det hindrar att en vanlig kategori som hälsa döljer att metoden är dålig på ovanliga kategorier.
+**Makromedelvärde (`MACRO`).** Medelvärdet av ett mått över kategorierna, där varje kategori väger lika mycket oavsett hur vanlig den är. Bara kategorier där måttet går att räkna ut tas med: för recall de som finns i facit, för precision de som metoden har flaggat. Det hindrar att en vanlig kategori som hälsa döljer att metoden är dålig på ovanliga kategorier.
 
 **Konfidensintervall.** Ett intervall som det sanna värdet troligen ligger inom. Ett resultat från ett begränsat antal testtexter är alltid lite osäkert. Ett 95-procentigt konfidensintervall från 0,70 till 0,90 betyder ungefär att vi är ganska säkra på att metodens verkliga recall ligger någonstans där.
 
 **Bootstrap.** Ett sätt att räkna ut konfidensintervall. Datorn drar slumpmässigt nya urval av testtexterna, där samma text kan komma med flera gånger, och räknar om måttet för varje urval. Här görs det 1 000 gånger. Hur mycket resultatet varierar mellan urvalen visar hur osäkert det är.
 
-**p-värde.** Ett mått på hur troligt det är att se en så stor skillnad mellan två metoder av en slump, om de i själva verket var lika bra. Ett lågt p-värde, till exempel under 0,05, tyder på att skillnaden är verklig.
+**p-värde.** Ett mått på hur troligt det är att se en så stor skillnad mellan två metoder av en slump, om de i själva verket var lika bra. Ett lågt p-värde, till exempel under 0,05, tyder på att skillnaden sannolikt inte bara beror på slumpen.
 
 ## Tjänster och verktyg
 
@@ -122,7 +124,11 @@ Recall och precision drar åt olika håll. En metod som flaggar allt får full r
 
 **Vertex AI.** Den del av GCP där man kan anropa AI-modeller, bland annat Gemini och Claude.
 
-**Model Garden.** En katalog i GCP med öppna modeller som går att köra i vårt eget GCP-projekt.
+**Model Garden.** Modellkatalogen i Vertex AI. Där finns både modeller som Gemini och Claude och öppna modeller som går att köra i vårt eget GCP-projekt.
+
+**Region och kvot.** En *region* är var i världen en molntjänst körs. Alla modeller finns inte i alla regioner. En *kvot* är hur mycket vi får använda en tjänst, till exempel hur många anrop per minut.
+
+**Hemlighet.** En inställning, till exempel en nyckel som ger åtkomst till GCP, som program får använda men som inte står i koden eller sparas i repot.
 
 **GPU.** Grafikprocessor. Den typ av datorkraft som behövs för att träna och köra AI-modeller.
 

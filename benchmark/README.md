@@ -30,7 +30,6 @@ Kör kommandona från repots rotmapp, i den här ordningen:
 uv sync
 uv run python -m benchmark.extern.redact
 uv run python -m benchmark.schema.validate benchmark/data/redact/redact_sv.jsonl
-uv run python -m benchmark.eval.score --gold benchmark/data/redact/redact_sv.jsonl --pred pred.jsonl
 uv run pytest
 ```
 
@@ -38,9 +37,19 @@ Det här gör de:
 
 1. **`uv sync`** installerar paketen som projektet behöver.
 2. **`benchmark.extern.redact`** laddar ner REDACT (213 MB, bara första gången) och kontrollerar med en checksumma att det är exakt rätt fil. Sedan görs den svenska delen om till vårt format och sparas i `benchmark/data/redact/redact_sv.jsonl`, tillsammans med statistik i `redact_sv.stats.json`. Om någon text inte följer formatet efter konverteringen avbryts programmet.
-3. **`benchmark.schema.validate`** kontrollerar att en fil följer formatet. Den skriver `OK`, eller en lista över felen med radnummer. Lägg till `--predictions` för att kontrollera en fil med en metods svar i stället, och `--gold` följt av facitfilen för att också kontrollera svaren mot texterna.
-4. **`benchmark.eval.score`** räknar poäng för en metods svar. Filen `pred.jsonl` är de svar som metoden har gett, se [Poängsättning](#poängsättning). Det finns ingen metod i repot än, så det här steget går inte att köra förrän någon har tagit fram en sådan fil.
-5. **`uv run pytest`** kör de automatiska testerna.
+3. **`benchmark.schema.validate`** kontrollerar att en fil följer formatet. Den skriver `OK`, eller en lista över felen med radnummer.
+4. **`uv run pytest`** kör de automatiska testerna.
+
+### När en metod har lämnat svar
+
+Det finns ingen metod i repot än. När en metod har lämnat sina svar i en fil, här kallad `pred.jsonl` (se [Poängsättning](#poängsättning)), kontrollerar och poängsätter man dem så här:
+
+```
+uv run python -m benchmark.schema.validate --predictions pred.jsonl --gold benchmark/data/redact/redact_sv.jsonl
+uv run python -m benchmark.eval.score --gold benchmark/data/redact/redact_sv.jsonl --pred pred.jsonl
+```
+
+Det första kommandot kontrollerar att svaren följer formatet och att de stämmer med texterna i facit. Svarsfilen måste stå före `--gold`, annars tolkas den som en facitfil. Det andra kommandot räknar poängen.
 
 ## Mappar och filer
 
@@ -79,9 +88,12 @@ All data sparas som JSONL: en textfil där varje rad beskriver en text och dess 
 
 ### Regler för positioner
 
-- **Var en bit text börjar och slutar** anges med `start` och `end`. `start` är det första tecknet som ingår och `end` det första tecknet som inte ingår. Första tecknet i texten har nummer 0.
-- **Tecknen räknas som Python räknar dem**, där varje bokstav, även å, ä och ö, och varje emoji räknas som ett tecken. Program som räknar på ett annat sätt måste räkna om. Räknar man i byte blir varje å, ä och ö två steg i stället för ett. Räknar man i UTF-16, som JavaScript gör, blir varje emoji två steg.
-- **En textbit får inte börja eller sluta med mellanslag.**
+En avgränsad bit av texten, till exempel en känslig uppgift eller ett namn, kallas ett *spann*. Längre ned kallas den ibland också *textbit*.
+
+- **Var ett spann börjar och slutar** anges med `start` och `end`. `start` är det första tecknet som ingår och `end` det första tecknet som inte ingår. Första tecknet i texten har nummer 0.
+- **Tecknen räknas som Python räknar dem**, i så kallade Unicode-kodpunkter. Varje bokstav, även å, ä och ö, är en kodpunkt. De flesta emojier är också en kodpunkt, men vissa, som flaggor, består av flera.
+- **Program som räknar på ett annat sätt måste räkna om.** Räknar man i UTF-8-byte blir varje å, ä och ö två steg i stället för ett. Räknar man i UTF-16, som JavaScript gör, blir de flesta emojier två steg.
+- **Ett spann får inte börja eller sluta med blanktecken**, alltså mellanslag, radbrytning eller tabb.
 
 ### Två särskilda regler
 
@@ -93,7 +105,7 @@ All data sparas som JSONL: en textfil där varje rad beskriver en text och dess 
 Utöver det som står i schemat kontrollerar [schema/validate.py](schema/validate.py) att:
 
 - varje textbit ligger inom texten och att `start` är mindre än `end`
-- ingen textbit börjar eller slutar med mellanslag
+- inget spann börjar eller slutar med blanktecken
 - inga två texter, och inga två personer i samma text, har samma id
 - varje `subject` hänvisar till en person som finns i `entities`
 - `expression` och `subject` finns på alla känsliga uppgifter i den syntetiska delen
@@ -159,28 +171,30 @@ REDACT använder egna namn på sina etiketter. Så här har de kopplats till vå
 
 Några av REDACT:s etiketter kopplas inte till någon kod:
 
-- **Nationalitet och medborgarskap** säger inget om etniskt ursprung.
-- **PEP-status**, alltså att någon har ett viktigt offentligt uppdrag, säger inget om personens politiska åsikter.
-- **Disciplinära åtgärder** gäller åtgärder från en arbetsgivare, inte brott.
-- **Övriga**, som kön, civilstånd, ålder, yrkestitel, lön, lösenord och kontoutdrag, hör inte till de känsliga kategorierna och inte heller till våra identifierare.
+- **Nationalitet och medborgarskap** (`Nationality`, `Citizenship_Status`) ligger nära etniskt ursprung men är inte detsamma.
+- **PEP-status** (`PEP_Status`), alltså att någon har ett viktigt offentligt uppdrag, är inte detsamma som en politisk åsikt.
+- **Disciplinära åtgärder** (`Disciplinary_Action`) gäller åtgärder från en arbetsgivare, inte brott.
+- **Övriga**, som kön (`Gender`), civilstånd (`Marital_Status`), ålder (`Age`), yrkestitel (`Business_Title`), lön (`Compensation_and_Salary`), lösenord (`Password`) och kontoutdrag (`Account_Statements`), hör inte till de känsliga kategorierna och inte heller till våra identifierare.
+
+Hur många märkningar av varje sort som inte kopplades står i statistikfilen, på raderna som börjar med `omappad:`.
 
 ### Val vi gjorde vid konverteringen
 
 - **Id.** REDACT:s eget id, `record_id`, är inte unikt: de 561 svenska texterna delar på bara 219 olika värden. Vi ger i stället varje text ett id efter dess plats i REDACT:s fil, till exempel `redact-01245`.
 - **Explicit eller implicit.** REDACT anger inte om en uppgift sägs rakt ut eller inte. Vi har märkt alla som `explicit`, eftersom de är tagna från listor över ord och uttryck som sjukdomsnamn, partinamn och brottsrubriceringar.
 - **Vem uppgiften gäller.** REDACT anger inte det. `subject` är därför `null` och `entities` är tom.
-- **Nekanden och exempel.** REDACT markerar själv uppgifter som inte avslöjar något om en person, med `disclosed: false`. De får `ignore: true` hos oss. Det gäller 24 känsliga uppgifter. I 10 texter finns en kategori bara i sådana uppgifter, och de texterna räknas inte som att de innehåller kategorin.
-- **Dubbelmärkningar.** REDACT märker till exempel både hela namnet "Erik Lund" och "Erik" och "Lund" var för sig. Vi tar bort märkningar som ligger helt inuti en annan märkning med samma etikett, vilket gäller 3 561 märkningar.
+- **Nekanden och exempel.** REDACT markerar själv uppgifter som inte avslöjar något om en person, med `disclosed: false`. De får `ignore: true` hos oss. Det gäller 24 känsliga uppgifter. I 10 texter finns en kategori bara i sådana uppgifter, och de texterna räknas inte som positiva för den kategorin.
+- **Dubbelmärkningar.** REDACT märker till exempel både hela namnet "Erik Lund" och "Erik" och "Lund" var för sig. Vi tar bort märkningar som ligger helt inuti en annan märkning med samma kod hos oss, efter kopplingen ovan. För känsliga uppgifter måste också `ignore` vara lika. Det gäller 3 561 märkningar.
 - **Felaktiga märkningar.** 48 av REDACT:s 14 693 märkningar i de svenska texterna pekar inte på den text de ska. De tas bort.
 
 ### Kända brister
 
 - **Bara uppgifter som sägs rakt ut.** Datasetet säger inget om hur bra metoder är på uppgifter som går att lista ut av sammanhanget.
-- **Etiketterna sitter på ord, inte på personer.** Ett partinamn eller en brottsrubricering är märkt även när texten inte avslöjar någons åsikt eller brott. Resultaten för `POLITICS`, `TRADE_UNION`, `RELIGION` och `CRIMINAL` ska därför läsas med försiktighet, särskilt precision. En metod som flaggar varje partinamn får rätt även när partinamnet inte säger något om någon, medan en metod som förstår sammanhanget och låter bli får fel.
+- **Etiketterna sitter på ord, inte på personer.** Ett partinamn eller en brottsrubricering är märkt även när texten inte avslöjar någons åsikt eller brott. Resultaten för `POLITICS`, `TRADE_UNION`, `RELIGION` och `CRIMINAL` ska därför läsas med försiktighet, särskilt precision. En metod som förstår sammanhanget och låter bli att flagga ett partinamn som inte säger något om någon får det räknat som en miss, vilket sänker recall. En metod som flaggar varje partinamn får i stället för hög precision.
 - **Få exempel i de flesta kategorier.** Bara `HEALTH` och `CRIMINAL` finns i fler än 11 texter. Bland de helt svenska texterna går det i praktiken bara att mäta `HEALTH`, och med stor osäkerhet `CRIMINAL`.
 - **Många texter blandar språk.** 317 av de 561 texterna blandar svenska med engelska eller andra språk. Hur mycket varje text blandar står i fältet `source.code_switching`: `none` (bara svenska), `light` eller `heavy`.
 - **Konstlade ord.** Ett 40-tal av de 438 känsliga uppgifterna är ihopskrivna ord utan mellanslag, som `PenicillinSvårAnafylaxi` och `ErikLindqvistPD4010Sjuk5Dagar`. Så skriver inte människor.
-- **Ofullständiga identifierare.** 276 av de 14 693 märkningarna är delvis dolda eller ofullständiga, till exempel `850315-XXXX`. De ligger kvar som vanliga identifierare.
+- **Ofullständiga identifierare.** 276 av rådatans 14 693 märkningar är delvis dolda eller ofullständiga, till exempel `850315-XXXX`. De ligger kvar som vanliga identifierare.
 
 ## Poängsättning
 
@@ -223,11 +237,21 @@ Poängen räknas på fyra nivåer:
 | Nivå | Frågan som besvaras | Mått |
 |---|---|---|
 | Dokument | Förstår metoden att texten innehåller kategorin? | Recall, separat för explicita och implicita uppgifter, samt precision. |
-| Spann | Pekar metoden också ut var i texten uppgiften står? | Recall och precision. |
+| Spann | Pekar metoden också ut var i texten uppgiften står? | Recall, separat för explicita och implicita uppgifter, samt precision. |
 | Attribution | Kopplar metoden uppgiften till rätt person? | Andel med rätt person bland de uppgifter metoden hittade, och andel av alla uppgifter som både hittades och fick rätt person. |
 | Identifierare | Hittar metoden namn, personnummer och liknande? | Recall och precision för varje typ. |
 
 *Recall* är hur stor andel av det som finns som metoden hittar. *Precision* är hur stor andel av det metoden flaggar som är rätt.
+
+I rapporten har måtten de här namnen:
+
+| Namn | Betyder |
+|---|---|
+| `recall` | Andel av uppgifterna (eller texterna) i facit som metoden hittade. |
+| `recall_explicit`, `recall_implicit` | Samma sak, men bara för explicita respektive implicita uppgifter. |
+| `precision` | Andel av metodens flaggningar som var rätt. |
+| `accuracy` | Attribution: andel med rätt person bland de uppgifter som metoden hittade. |
+| `recall_with_subject` | Attribution: andel av alla uppgifter i facit som metoden både hittade och kopplade till rätt person. |
 
 ### Räkneexempel
 
@@ -235,7 +259,7 @@ Om metoden i exemplet ovan körs mot facit för texten om Erik Lund blir resulta
 
 - **Dokumentnivå: allt rätt.** Metoden har angett både `RELIGION` och `HEALTH` under `categories`, och texten innehåller båda.
 - **Spannivå: hälften rätt.** Metoden pekar ut var religionsuppgiften står men inte var hälsouppgiften står. Recall blir därför 1 av 2, alltså 0,50.
-- **Attribution: rätt för religion.** Namnet "Erik Lund" passar på person P1, som är den uppgiften gäller.
+- **Attribution: rätt person för religion.** Namnet "Erik Lund" passar på person P1, som är den uppgiften gäller. Bland de uppgifter som metoden hittade har alla rätt person (`accuracy` 1,00). Men eftersom hälsouppgiften inte hittades är det bara 1 av 2 uppgifter som både hittades och fick rätt person (`recall_with_subject` 0,50).
 - **Identifierare: allt rätt.** Metoden har hittat namnet.
 
 ### Regler
@@ -243,10 +267,10 @@ Om metoden i exemplet ovan körs mot facit för texten om Erik Lund blir resulta
 - **Överlapp.** En uppgift i facit räknas som hittad om metoden har pekat ut en textbit med samma etikett som överlappar den med minst ett tecken. Med `--iou` kan man kräva mer: `--iou 0.5` kräver att den gemensamma delen är minst hälften av hela området som de två textbitarna täcker tillsammans.
 - **`ignore`.** En text där en kategori bara finns i `ignore`-märkta uppgifter räknas inte alls för den kategorin. Om metoden pekar ut en textbit som bara träffar en `ignore`-märkt uppgift räknas det varken som rätt eller fel.
 - **`ANY`** är en extra rad i resultatet som bortser från kategorin: hittar metoden att det finns något känsligt alls?
-- **`MACRO`** är en extra rad med medelvärdet över alla kategorier som finns i facit, där varje kategori väger lika mycket oavsett hur vanlig den är. Då syns det om metoden är dålig på ovanliga kategorier, även om den är bra på de vanliga.
-- **Uppdelning.** Resultaten redovisas för varje del (`part`), för varje del och AI-modell som skrev texterna (`source.generator`), och, för REDACT, för varje del och grad av språkblandning (`source.code_switching`). Med `--slice-by` kan man välja andra fält, till exempel `--slice-by source.domain`.
+- **`MACRO`** är en extra rad med medelvärdet över kategorierna, där varje kategori väger lika mycket oavsett hur vanlig den är. Då syns det om metoden är dålig på ovanliga kategorier, även om den är bra på de vanliga. Bara kategorier där måttet går att räkna ut tas med: för recall de som finns i facit, för precision de som metoden har flaggat.
+- **Uppdelning.** Resultaten redovisas för varje del (`part`), för varje del och AI-modell som skrev texterna (`source.generator`), och, för REDACT, för varje del och grad av språkblandning (`source.code_switching`). Med `--slice-by` väljer man själv uppdelningen. Det ersätter standarduppdelningen, så den som vill ha kvar den måste ange den också. Kommatecken kombinerar fält: `--slice-by part,source.domain` ger en uppdelning per del och område. Standarduppdelningen motsvarar `--slice-by part --slice-by part,source.generator --slice-by part,source.code_switching`.
 - **Osäkerhet.** Varje resultat har ett 95-procentigt konfidensintervall, ett intervall som det verkliga värdet troligen ligger inom. Det räknas fram med bootstrap: programmet drar 1 000 slumpvisa urval av texterna och räknar om resultatet för varje urval.
-- **Jämförelse med en annan metod.** Med `--baseline` följt av en annan metods svarsfil jämförs de två metoderna på samma slumpvisa urval. Rapporten visar skillnaden mellan dem, ett konfidensintervall för skillnaden och ett p-värde. Ett lågt p-värde, till exempel under 0,05, tyder på att skillnaden inte beror på slumpen.
+- **Jämförelse med en annan metod.** Med `--baseline` följt av en annan metods svarsfil jämförs de två metoderna på samma slumpvisa urval. Rapporten visar skillnaden mellan dem, ett konfidensintervall för skillnaden och ett p-värde. Ett lågt p-värde, till exempel under 0,05, tyder på att skillnaden sannolikt inte bara beror på slumpen.
 
 ### Inställningar
 
@@ -256,7 +280,7 @@ Om metoden i exemplet ovan körs mot facit för texten om Erik Lund blir resulta
 | `--pred FIL` | Metodens svar. Krävs. |
 | `--baseline FIL` | En annan metods svar att jämföra med. |
 | `--out FIL` | Sparar hela rapporten som JSON, för vidare bearbetning. |
-| `--slice-by FÄLT[,FÄLT]` | Delar upp resultatet på andra fält. Kan anges flera gånger. |
+| `--slice-by FÄLT[,FÄLT]` | Väljer hur resultatet delas upp, i stället för standarduppdelningen. Kan anges flera gånger. Kommatecken kombinerar fält. |
 | `--bootstrap N` | Antal slumpvisa urval för konfidensintervallen. Standard 1 000. `0` stänger av dem. |
 | `--seed N` | Startvärde för slumpen, så att samma körning alltid ger samma intervall. Standard 0. |
 | `--iou X` | Hur mycket textbitar måste överlappa för att räknas som träff. Standard 0, alltså räcker det med ett tecken. |
@@ -272,7 +296,7 @@ Programmet skriver ut en tabell per delmängd och nivå. Varje ruta ser ut så h
 
 - `0.800` är resultatet, här en recall på 0,80.
 - `[0.69–0.91]` är konfidensintervallet.
-- `n=50` är hur många texter eller uppgifter resultatet bygger på.
+- `n=50` är hur många resultatet bygger på. För recall är det antalet uppgifter eller texter i facit, för precision antalet flaggningar från metoden.
 
 Ett streck (`–`) betyder att det inte finns något att räkna på, till exempel precision för en kategori som metoden aldrig flaggade.
 

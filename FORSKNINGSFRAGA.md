@@ -26,7 +26,7 @@ För att de system som tar emot texterna ska kunna hantera uppgifterna enligt r�
 
 I dag används två sorters verktyg:
 
-- **Regler**, som letar efter fasta mönster. Ett personnummer har till exempel alltid samma form: sex siffror, ett bindestreck och fyra siffror.
+- **Regler**, som letar efter fasta mönster. Ett personnummer har till exempel en fast form, oftast sex siffror, ett bindestreck och fyra siffror.
 - **NER** (named entity recognition), som automatiskt känner igen namn på personer, platser och organisationer.
 
 De fungerar bra för uppgifter med fast form, som personnummer, e-postadresser och telefonnummer. De missar däremot det som är mest skyddsvärt: de känsliga uppgifterna i listan ovan. Det beror på att de känsliga uppgifterna sällan har en fast form och ofta inte sägs rakt ut.
@@ -36,13 +36,13 @@ De fungerar bra för uppgifter med fast form, som personnummer, e-postadresser o
 | "han är muslim" | "han går i moskén varje fredag" |
 | "hon röstar på Vänsterpartiet" | "hon var med och startade lokalavdelningen" |
 
-Den högra kolumnen innehåller inget ord som "muslim" eller "parti" som ett verktyg kan leta efter. Ändå avslöjar meningarna samma sak som de i den vänstra kolumnen.
+Den högra kolumnen innehåller inget ord som "muslim" eller "parti" som ett verktyg kan leta efter. Ändå avslöjar meningarna samma sorts uppgift som de i den vänstra kolumnen: religion respektive politisk åsikt.
 
 Det finns dessutom inget gemensamt sätt att mäta hur bra olika metoder är på det här för svensk text. Därför går det inte att jämföra dem på ett rättvist sätt.
 
 ## Målet
 
-Undersöka hur väl olika metoder kan hitta, avgränsa och kategorisera känsliga personuppgifter och användbar metadata i ostrukturerad svensk text, så att uppgifterna kan hanteras enligt rätt regler i de system som tar emot texten.
+Undersöka hur väl olika metoder kan hitta, avgränsa och kategorisera känsliga personuppgifter och annan användbar information om texten (metadata) i svensk fritext, alltså text som inte är uppdelad i fasta fält, så att uppgifterna kan hanteras enligt rätt regler i de system som tar emot texten.
 
 ## De tre frågorna vi ska besvara
 
@@ -50,7 +50,7 @@ Undersöka hur väl olika metoder kan hitta, avgränsa och kategorisera känslig
 
 För att kunna jämföra metoder behövs en *benchmark*: en fast samling testtexter med facit, alltså de rätta svaren, och ett fast sätt att räkna poäng.
 
-Frågan är hur vi tar fram en sådan för svensk text utan att människor behöver läsa och märka upp stora mängder riktiga texter med känsliga uppgifter. Det vill vi undvika eftersom det tar mycket tid, och eftersom fler personer då får läsa känsliga uppgifter om riktiga människor.
+Frågan är hur vi tar fram en sådan för svensk text, som är representativ för de texter vi faktiskt får in, utan att människor behöver läsa och märka upp stora mängder riktiga texter med känsliga uppgifter. Det vill vi undvika eftersom det tar mycket tid, och eftersom fler personer då får läsa känsliga uppgifter om riktiga människor.
 
 Det finns tre alternativ:
 
@@ -71,11 +71,11 @@ När testmaterialet finns jämför vi fyra typer av metoder:
 
 Vi mäter hur bra metoderna är för varje kategori för sig, och separat för uppgifter som sägs rakt ut och uppgifter som går att lista ut av sammanhanget.
 
-### 3. Vad kostar de olika metoderna?
+### 3. Vilka för- och nackdelar har metoderna?
 
 Den metod som hittar mest är inte nödvändigtvis den bästa att använda. Vi jämför därför också:
 
-- **Träffsäkerhet:** hur mycket metoden hittar och hur ofta den har rätt.
+- **Resultat:** hur mycket metoden hittar och hur ofta den har rätt.
 - **Kostnad:** vad det kostar att köra metoden på alla texter.
 - **Svarstid:** hur lång tid metoden tar för varje text.
 - **Förklarbarhet:** om det går att förstå varför metoden flaggade en text.

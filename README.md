@@ -1,5 +1,7 @@
 # jev-playground
 
+*testing jev model(s) in different settings*
+
 Ett projekt där vi testar hur bra olika metoder är på att hitta känsliga uppgifter om personer i svensk fritext.
 
 ## Vad handlar det om?
@@ -22,7 +24,7 @@ Begrepp som kan vara obekanta, som *recall*, *spann* och *LLM*, förklaras i **[
 ## Läget just nu
 
 - **Klart:** Det första färdiga datasetet, REDACT, är hämtat och omgjort till vårt format. Programmen som kontrollerar formatet och räknar poäng är klara.
-- **Nästa steg:** Bygga programmet som låter en AI skriva egna testtexter. Det behövs för uppgifter som inte sägs rakt ut, eftersom inget färdigt dataset innehåller sådana.
+- **Nästa steg:** Bygga programmet som låter en AI skriva egna testtexter. Det behövs för uppgifter som inte sägs rakt ut, eftersom sådana nästan saknas i de färdiga dataseten.
 
 ## Kom igång med koden
 
