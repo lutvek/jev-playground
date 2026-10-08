@@ -11,34 +11,35 @@ Genomgången gjordes 2026-10-08 med webbsökning. Källorna står sist i dokumen
    - *zero-shot-modeller* som GLiNER, som letar efter det man beskriver med ord utan att först tränas på exempel
    - *beslutsmodeller* som Jev, som svarar på frågor med fasta svarsalternativ och ger en sannolikhet för varje svar
    - *kombinationer*, där en billig metod sållar och en LLM bara läser det som har sållats fram
-2. **Identifierare och känsliga uppgifter är två olika problem.** Identifierare, som personnummer och namn, hittas redan bra med regex och NER. Känsliga uppgifter, särskilt de som inte sägs rakt ut, kräver metoder som förstår vad en mening betyder.
-3. **Det är på implicita uppgifter som metoderna troligen skiljer sig mest.** Forskning visar att LLM:er är bra på att lista ut uppgifter om personer ur sammanhanget. Samtidigt är tränade encoder-modeller ofta lika bra eller bättre när mönstret är tydligt. Det är just den skillnaden benchmarken är byggd för att mäta.
-4. **Nekanden och frågan om vem uppgiften gäller är egna delproblem.** Det finns beprövade regelmetoder för dem, NegEx och ConText, som kan läggas ovanpå vilken annan metod som helst. NegEx finns redan anpassad till svenska.
-5. **Metoderna bör jämföras vid samma recall.** Recall är det viktigaste måttet. Därför bör varje metod först ställas in på dev-texterna så att den hittar en bestämd andel av uppgifterna, till exempel 90 procent. Sedan jämförs hur många falsklarm metoderna ger för att nå dit.
+2. **Med 400 exempel blir zero-shot och few-shot huvudspåret.** Av de 400 syntetiska texterna går ungefär 300 till test och 100 till dev. De 100 räcker för att välja exempel till en LLM, ställa in gränsvärden och träna metoder som är byggda för några få exempel, som SetFit. De räcker inte för att finjustera en encoder-modell eller en LLM. Sådana metoder blir bara aktuella om det finns mer träningsdata, till exempel från PrivoNest.
+3. **Identifierare och känsliga uppgifter är två olika problem.** Identifierare, som personnummer och namn, hittas redan bra med regex och NER. Känsliga uppgifter, särskilt de som inte sägs rakt ut, kräver metoder som förstår vad en mening betyder.
+4. **Det är på implicita uppgifter som metoderna troligen skiljer sig mest.** Forskning visar att LLM:er är bra på att lista ut uppgifter om personer ur sammanhanget. Samtidigt är tränade encoder-modeller ofta lika bra eller bättre när mönstret är tydligt. Det är just den skillnaden benchmarken är byggd för att mäta.
+5. **Nekanden och frågan om vem uppgiften gäller är egna delproblem.** Det finns beprövade regelmetoder för dem, NegEx och ConText, som kan läggas ovanpå vilken annan metod som helst. NegEx finns redan anpassad till svenska.
+6. **Metoderna bör jämföras vid samma recall.** Recall är det viktigaste måttet. Därför bör varje metod först ställas in på dev-texterna så att den hittar en bestämd andel av uppgifterna, till exempel 90 procent. Sedan jämförs hur många falsklarm metoderna ger för att nå dit.
 
 ## Tre frågor att ställa om varje metod
 
 Metoderna skiljer sig åt på tre sätt som avgör hur de kan användas och vad de kostar.
 
 - **Vad lämnar metoden ifrån sig?** Bara vilka kategorier texten innehåller (dokumentnivå), en flagga per mening, exakta spann, eller också vem uppgiften gäller. Poängprogrammet räknar bara på det metoden lämnar, se [benchmark/README.md](benchmark/README.md#poängsättning).
-- **Hur många exempel behöver den?** Inga alls (*zero-shot*), några få per kategori (*few-shot*) eller tusentals (*finjustering*). Med de ungefär 3 000 syntetiska träningstexterna i planen går alla tre att testa.
+- **Hur många exempel behöver den?** Inga alls (*zero-shot*), några få per kategori (*few-shot*) eller tusentals (*finjustering*). Med 400 syntetiska texter, varav ungefär 100 för justering, är zero-shot och few-shot realistiskt. Finjustering kräver mer träningsdata än så.
 - **Var körs den?** På en vanlig server utan GPU, på en egen GPU eller hos en extern leverantör. Det avgör både kostnaden och om texterna lämnar vår egen miljö.
 
 ## Översikt
 
-| | Angreppssätt | Väntas klara | Behöver exempel | Körs | Nytt jämfört med forskningsfrågan |
+| | Angreppssätt | Väntas klara | Exempel som behövs | Körs | Nytt jämfört med forskningsfrågan |
 |---|---|---|---|---|---|
-| 1 | Regex med validering | Identifierare med fast form | Nej | Vanlig server | Nej |
-| 2 | Lexikon med svensk ordanalys | Explicita uppgifter | Nej | Vanlig server | Nej |
-| 3 | Kontextregler (nekande och vem) | Ett tillägg till andra metoder | Nej | Vanlig server | Ja |
-| 4 | NER | Namn, platser och organisationer | Nej, färdiga modeller finns | Vanlig server | Nej |
-| 5 | Statistisk klassificerare | Explicita uppgifter | Ja, tusentals | Vanlig server | Nej |
-| 6 | Inbäddningar | Explicita, och delvis implicita | Få eller många | Vanlig server | Ja |
-| 7 | Zero-shot-spannmodeller (GLiNER) | Okänt för svenska, måste testas | Nej, men kan finjusteras | Vanlig server | Ja |
-| 8 | Finjusterad encoder-modell | Explicita, och troligen många implicita | Ja, tusentals | GPU för träning | Nej |
+| 1 | Regex med validering | Identifierare med fast form | Inga | Vanlig server | Nej |
+| 2 | Lexikon med svensk ordanalys | Explicita uppgifter | Inga | Vanlig server | Nej |
+| 3 | Kontextregler (nekande och vem) | Ett tillägg till andra metoder | Inga | Vanlig server | Ja |
+| 4 | NER | Namn, platser och organisationer | Inga, färdiga modeller finns | Vanlig server | Nej |
+| 5 | Statistisk klassificerare | Explicita uppgifter | Många. Svag med 100 | Vanlig server | Nej |
+| 6 | Inbäddningar | Explicita, och delvis implicita | Inga eller få | Vanlig server | Ja |
+| 7 | Zero-shot-spannmodeller (GLiNER) | Okänt för svenska, måste testas | Inga | Vanlig server | Ja |
+| 8 | Finjusterad encoder-modell | Explicita, och troligen många implicita | Tusentals. Räcker inte med 400 | GPU för träning | Nej |
 | 9 | LLM med instruktioner | Troligen bäst på implicita | Inga eller få | Extern eller egen GPU | Nej |
-| 10 | Beslutsmodell (Jev och öppna varianter som Laya) | Okänt för svenska, måste testas | Nej, men Laya kan finjusteras | Jev: extern tjänst. Öppna varianter: egen server eller GPU | Ja |
-| 11 | Finjusterad liten LLM | Som 9, men lokalt | Ja, tusentals | Egen GPU | Nej |
+| 10 | Beslutsmodell (Jev och öppna varianter) | Okänt för svenska, måste testas | Inga | Jev: extern tjänst. Öppna varianter: egen server eller GPU | Ja |
+| 11 | Finjusterad liten LLM | Som 9, men lokalt | Tusentals. Räcker inte med 400 | Egen GPU | Nej |
 | 12 | Kombinationer | Beror på delarna | Beror på delarna | Blandat | Ja |
 
 Kolumnen *Väntas klara* är en förhandsbedömning utifrån forskningen. Det är just den bedömningen benchmarken ska pröva.
@@ -95,7 +96,7 @@ NegEx har anpassats till svenska journaltext, med en precision på 75 procent oc
 
 En klassisk metod är att räkna vilka ord och ordpar som förekommer i en mening och låta en enkel modell, till exempel *logistisk regression*, lära sig hur mycket varje ord talar för varje kategori. Varje mening får noll eller flera kategorier. Meningens position i texten blir då spannet.
 
-**Kräver:** träningstexterna. **Styrka:** snabb, billig och förklarbar, eftersom man kan se vilka ord som vägde tyngst. **Risk:** modellen kan lära sig ord som modell A, som skrev träningstexterna, gärna använder. Jämförelsen mellan modell A:s och modell B:s testtexter visar om det har hänt.
+**Kräver:** många exempel per kategori, eftersom den lär sig enskilda ord. Med de ungefär 100 dev-texterna blir den svag. Den kan tränas på PrivoNest om det håller, men då främst för explicita uppgifter. **Styrka:** snabb, billig och förklarbar, eftersom man kan se vilka ord som vägde tyngst. **Risk:** modellen kan lära sig ord som modell A, som skrev dev-texterna, gärna använder. Jämförelsen mellan modell A:s och modell B:s testtexter visar om det har hänt.
 
 **Roll i benchmarken:** visar hur långt man kommer med "ord som brukar förekomma". En avancerad metod som inte slår den här är inte värd besväret.
 
@@ -105,9 +106,9 @@ En *inbäddningsmodell* gör om en mening till en lång lista med tal, en *vekto
 
 Det finns tre varianter, med olika behov av exempel:
 
-- **Likhetssökning mot en exempelbank.** Någon skriver 20–50 exempelmeningar per kategori. En mening flaggas om den liknar något av exemplen tillräckligt mycket. Ingen träning behövs, och förklaringen är enkel: "liknade exemplet X".
-- **Inbäddning och enkel klassificerare.** Samma som metod 5, men med vektorerna i stället för orden. Tränas på träningstexterna.
-- **SetFit.** Tränar om själva inbäddningsmodellen med några få exempel per kategori. I den ursprungliga artikeln räckte 8 exempel per kategori för att komma i nivå med en större modell som tränats på 3 000 exempel.
+- **Likhetssökning mot en exempelbank.** En mening flaggas om den liknar någon av exempelmeningarna tillräckligt mycket. De känsliga spannen i dev-texterna kan användas som exempel, eftersom de redan har facit, och fler kan skrivas för hand. Ingen träning behövs, och förklaringen är enkel: "liknade exemplet X".
+- **Inbäddning och enkel klassificerare.** Samma som metod 5, men med vektorerna i stället för orden. Tränas på dev-texterna. Det klarar sig med färre exempel än metod 5, eftersom vektorerna redan bär betydelsen.
+- **SetFit.** Tränar om själva inbäddningsmodellen med några få exempel per kategori. I den ursprungliga artikeln räckte 8 exempel per kategori för att komma i nivå med en större modell som tränats på 3 000 exempel. Det är den variant som passar bäst med 400 exempel.
 
 Det finns svenska och flerspråkiga inbäddningsmodeller, till exempel KBLab:s sentence-bert-swedish-cased. De går att köra utan GPU.
 
@@ -115,13 +116,13 @@ Det finns svenska och flerspråkiga inbäddningsmodeller, till exempel KBLab:s s
 
 ### 7. Zero-shot-spannmodeller (GLiNER)
 
-*GLiNER* är en familj av små modeller, ungefär 100–500 miljoner parametrar, alltså en bråkdel av en LLM. De pekar ut spann för etiketter som man beskriver med vanliga ord, till exempel "religiös övertygelse" eller "sjukdom eller hälsotillstånd". De behöver ingen träning för att fungera, men kan finjusteras på våra träningstexter. En systermodell, GLiClass, gör samma sak för hela texter i stället för spann. Båda går att köra utan GPU.
+*GLiNER* är en familj av små modeller, ungefär 100–500 miljoner parametrar, alltså en bråkdel av en LLM. De pekar ut spann för etiketter som man beskriver med vanliga ord, till exempel "religiös övertygelse" eller "sjukdom eller hälsotillstånd". De behöver ingen träning för att fungera. De kan finjusteras, men med ungefär 100 dev-texter blir vinsten troligen liten. En systermodell, GLiClass, gör samma sak för hela texter i stället för spann. Båda går att köra utan GPU.
 
 Under 2025–2026 har det kommit flera GLiNER-modeller för personuppgifter, till exempel GLiNER2-PII med 42 sorters identifierare. De är byggda för identifierare, inte för känsliga uppgifter.
 
 **Okänt:** hur bra de flerspråkiga versionerna klarar svenska, och om de alls hittar uppgifter som inte sägs rakt ut. Enligt dem som har använt modellerna är formuleringen av etiketterna det som påverkar resultatet mest.
 
-**Roll i benchmarken:** en lokal metod som pekar ut spann utan att behöva träningsdata. Den bör testas både utan träning och finjusterad.
+**Roll i benchmarken:** en lokal metod som pekar ut spann utan att behöva träningsdata. Den testas utan träning.
 
 ### 8. Finjusterad encoder-modell
 
@@ -134,14 +135,16 @@ Som grund finns svenska modeller, som KB-BERT och AI Swedens RoBERTa, och nyare 
 
 En japansk studie från 2026 gjorde nästan exakt det vi planerar: en LLM märkte upp texter med känsliga personuppgifter, och sedan tränades en snabb modell på dem.
 
-**Roll i benchmarken:** den viktigaste kandidaten bland metoder som kan köras i vår egen miljö.
+**Med 400 exempel:** en encoder-modell behöver normalt tusentals exempel för att lära sig en ny uppgift, och de ungefär 100 dev-texterna räcker inte. Den blir bara aktuell om PrivoNest håller, och då främst för explicita uppgifter, eller om fler texter genereras enbart för träning (se de öppna frågorna).
+
+**Roll i benchmarken:** den viktigaste lokala kandidaten om det finns mer träningsdata. Annars tar SetFit (metod 6) dess plats.
 
 ### 9. LLM med instruktioner
 
 En stor språkmodell får instruktioner i text och svarar med vad den hittar. Det finns flera varianter som skiljer sig i kostnad och träffsäkerhet:
 
 - **Zero-shot:** bara beskrivningar av kategorierna.
-- **Few-shot:** beskrivningarna plus några exempel. Ännu bättre är att för varje text välja de exempel ur träningstexterna som liknar texten mest, med hjälp av inbäddningar (metod 6).
+- **Few-shot:** beskrivningarna plus några exempel. Ännu bättre är att för varje text välja de exempel ur dev-texterna som liknar texten mest, med hjälp av inbäddningar (metod 6). Med 400 exempel är det här det viktigaste sättet att använda exemplen.
 - **Med eller utan resonemang:** modellen får "tänka" innan den svarar. Det kostar mer men kan hjälpa för uppgifter som måste listas ut.
 - **Extern eller lokal modell:** en stark modell via Vertex AI, som Gemini eller Claude, jämfört med en öppen modell som körs i Model Garden eller på egna GPU:er. Skillnaden mellan dem är kärnan i fråga 3.
 
@@ -186,7 +189,7 @@ Jevs egna vikter är inte offentliga. Sedan Jev släpptes har det kommit många 
 
 | Variant | Grundmodell | Licens | Svenska | Bedömning |
 |---|---|---|---|---|
-| **Laya Multilingual** | mmBERT, 322 miljoner parametrar, från Johns Hopkins University i USA | Apache-2.0 | Byggd för över 100 språk. Utan träning valde den rätt bland 20 alternativ i 49 procent av de svenska testfallen, där slumpen ger 5 procent. | Den bästa lilla kandidaten. Måste finjusteras. |
+| **Laya Multilingual** | mmBERT, 322 miljoner parametrar, från Johns Hopkins University i USA | Apache-2.0 | Byggd för över 100 språk. Utan träning valde den rätt bland 20 alternativ i 49 procent av de svenska testfallen, där slumpen ger 5 procent. | Den bästa lilla kandidaten, men behöver finjusteras och 400 exempel räcker troligen inte. |
 | **AnyJev med Gemma eller Mistral** | Valfri öppen språkmodell, till exempel Gemma från Google eller Mistral från Frankrike | Apache-2.0 för programmet | Beror på språkmodellen | Den bästa kandidaten utan träning. |
 | **Jeff-Gemma4-E2B** | Gemma 4 E2B från Google, ungefär 2 miljarder parametrar | Apache-2.0 | Okänt | Troligen inte. Träningstexterna är skrivna av en Qwen-modell, och Gemma-versionen uppdateras inte längre. |
 | **Von** | ModernBERT, 395 miljoner parametrar, från Answer.AI och LightOn i USA och Frankrike | Apache-2.0 | Bara engelska | Inte användbar för svenska. |
@@ -195,7 +198,7 @@ Jevs egna vikter är inte offentliga. Sedan Jev släpptes har det kommit många 
 
 - **Samma API som Jev.** Layas server svarar på samma anrop som Jev, så samma program kan köra båda.
 - **Liten och lokal.** Den går att köra utan GPU, med svarstider på några tiotal millisekunder per fråga.
-- **Kan finjusteras.** Det finns ett färdigt träningsrecept som också ställer in sannolikheterna. De syntetiska träningstexterna kan göras om till Layas format: en ja/nej-fråga per kategori, med svaret från facit.
+- **Kan finjusteras.** Det finns ett färdigt träningsrecept som också ställer in sannolikheterna. Texterna med facit kan göras om till Layas format: en ja/nej-fråga per kategori, med svaret från facit. Med bara ungefär 100 dev-texter blir vinsten osäker. Utvecklaren av en liknande modell fann att 400 träningsexempel inte gav någon säker förbättring.
 - **Svag utan träning.** Utvecklaren skriver själv att Laya är en grund att bygga vidare på, inte en färdig modell. Sannolikheterna stämmer dåligt innan de har ställts in.
 - **Alla siffror är utvecklarens egna.** Projektet är bara några veckor gammalt.
 
@@ -205,15 +208,15 @@ Finjusterad liknar Laya mycket metod 8. Skillnaden är att kategorierna ställs 
 
 Det finns ingen Jev-variant byggd på EuroBERT. Layas och Vons träningsrecept går i princip att köra på en annan encoder-modell, men då blir resultatet i praktiken metod 8.
 
-**Roll i benchmarken:** ett mellanting mellan en finjusterad encoder-modell och en LLM. Jev behöver inga exempel, precis som en LLM, men ger sannolikheter och är billig. Jev, Laya Multilingual och AnyJev med Gemma bör testas med samma frågor, per text och per mening, med frågor på både engelska och svenska. Laya testas både utan träning och finjusterad på träningstexterna. Skillnaden mellan Jev och de lokala varianterna visar vad det kostar i träffsäkerhet att stanna i vår egen miljö. Alla passar också som första steg i en kaskad (metod 12).
+**Roll i benchmarken:** ett mellanting mellan en finjusterad encoder-modell och en LLM. Jev behöver inga exempel, precis som en LLM, men ger sannolikheter och är billig. Jev, Laya Multilingual och AnyJev med Gemma bör testas med samma frågor, per text och per mening, med frågor på både engelska och svenska, alla utan träning. Eftersom ingen av dem behöver exempel passar de bra med 400 exempel. AnyJev med Gemma är den viktigaste lokala varianten, eftersom Laya är svag utan träning. Skillnaden mellan Jev och de lokala varianterna visar vad det kostar i träffsäkerhet att stanna i vår egen miljö. Alla passar också som första steg i en kaskad (metod 12).
 
 ### 11. Finjusterad liten LLM (destillation)
 
-En öppen, liten LLM, med några miljarder parametrar, tränas vidare på träningstexterna. Det görs vanligen med *LoRA*, en billig träningsmetod som bara ändrar en liten del av modellen. Eftersom träningstexterna är skrivna av en stor LLM överförs i praktiken den stora modellens förmåga till en liten modell som kan köras på egen GPU. Det kallas *destillation*.
+En öppen, liten LLM, med några miljarder parametrar, tränas vidare på AI-skrivna texter med facit. Det görs vanligen med *LoRA*, en billig träningsmetod som bara ändrar en liten del av modellen. Eftersom texterna är skrivna av en stor LLM överförs i praktiken den stora modellens förmåga till en liten modell som kan köras på egen GPU. Det kallas *destillation*.
 
 I studien UniversalNER blev en liten modell som tränats på ChatGPT:s svar bättre än ChatGPT själv på att hitta namn och andra entiteter i text.
 
-**Roll i benchmarken:** visar om förståelsen hos en LLM går att få i vår egen miljö till lägre kostnad. Lägre prioritet än metod 8 och 9. Den blir intressant om LLM:er visar sig vara klart bättre än encoder-modellerna.
+**Roll i benchmarken:** visar om förståelsen hos en LLM går att få i vår egen miljö till lägre kostnad. Den kräver tusentals träningsexempel och är därför inte aktuell med 400 exempel.
 
 ### 12. Kombinationer
 
@@ -240,27 +243,27 @@ Utöver verktygen i [KALLOR.md](KALLOR.md#färdiga-verktyg-att-jämföra-med) fi
 
 Planen beskriver redan hur poängen räknas. Fyra saker behöver läggas till när metoderna jämförs:
 
-- **Jämför vid samma recall.** Många metoder ger ett tal för hur säkra de är. Då kan man välja en gräns på dev-texterna så att metoden når en bestämd recall per kategori, till exempel 0,90, och sedan jämföra precisionen på testtexterna. Annars ser en metod som flaggar mycket bra ut på recall och dålig på precision, och det går inte att säga vilken metod som är bäst. LLM:er ger sällan ett sådant tal. Då redovisas de som de är.
-- **Jämför modell A och modell B för alla metoder som tränas** (5, 6, 8, 11 och finjusterad Laya i 10). De är de metoder som kan lära sig skrivstilen i stället för uppgiften.
+- **Jämför vid samma recall.** Många metoder ger ett tal för hur säkra de är. Då kan man välja en gräns på dev-texterna så att metoden når en bestämd recall, till exempel 0,90, och sedan jämföra precisionen på testtexterna. Med ungefär 100 dev-texter finns bara en handfull exempel per kategori, så gränsen sätts gemensamt för alla kategorier, inte för varje kategori för sig. Annars ser en metod som flaggar mycket bra ut på recall och dålig på precision, och det går inte att säga vilken metod som är bäst. LLM:er ger sällan ett sådant tal. Då redovisas de som de är.
+- **Jämför modell A och modell B för alla metoder som tränas eller får exempel** (5, 6, 8, 11 och few-shot i 9). De är de metoder som kan lära sig skrivstilen i stället för uppgiften.
+- **Jämför i första hand över alla kategorier tillsammans.** Med ungefär 300 testtexter blir det bara 20–30 exempel per kategori och uttryckstyp, och resultaten per kategori blir grova. Se [PLAN_BENCHMARK.md](PLAN_BENCHMARK.md#storlek-och-uppdelning).
 - **Spann per mening.** Metoder som arbetar per mening lämnar hela meningen som spann. Det räknas som träff med poängprogrammets standardinställning, där det räcker att spannen överlappar med ett tecken, men oftast inte med `--iou 0.5`. Det ska stå i redovisningen.
 - **Mät kostnad och tid** per 1 000 texter, och ange om texterna lämnar vår miljö.
 
 ## Förslag: vad PoC:n testar
 
-Listan täcker alla tre frågorna ovan: vad metoden lämnar, hur många exempel den behöver och var den körs.
+Listan täcker alla tre frågorna ovan: vad metoden lämnar, hur många exempel den behöver och var den körs. Med 400 exempel ligger tyngdpunkten på metoder som klarar sig med inga eller några få exempel.
 
-| Ordning | Metod | Varför |
-|---|---|---|
-| 1 | Regex med validering och färdig svensk NER | Baslinje för identifierare och byggsten för koppling till person. |
-| 2 | Lexikon med svensk ordanalys, med och utan NegEx | Baslinje för explicita uppgifter. Finns redan i planen. |
-| 3 | LLM via Vertex AI, zero-shot och few-shot | Troligen bäst på implicita uppgifter. Finns redan i planen. |
-| 4 | Samma instruktioner till en öppen LLM i egen miljö | Visar vad det kostar i träffsäkerhet att inte skicka texterna vidare. |
-| 5 | Jev, Laya Multilingual och AnyJev med Gemma, med frågor per text och per mening, på engelska och svenska | Behöver inga exempel och ger sannolikheter. Laya och AnyJev körs i egen miljö, och Laya kan finjusteras. Kan också vara sållet i en kaskad. |
-| 6 | Statistisk klassificerare och inbäddningar, per mening | Billiga lokala metoder. Visar om implicita uppgifter går att fånga utan stora modeller. |
-| 7 | Finjusterad svensk encoder-modell, per mening och per ord | Den viktigaste lokala kandidaten. |
-| 8 | GLiNER, utan träning och finjusterad | Lokal spannmodell som inte behöver träningsdata. |
-| 9 | Kaskad: rad 5, 6 eller 7 sållar, rad 3 eller 4 avgör | Svarar på kostnadsfrågan. |
-| Senare | Finjusterad liten LLM | Om LLM:er är klart bättre än encoder-modellerna. |
+| Ordning | Metod | Exempel | Varför |
+|---|---|---|---|
+| 1 | Regex med validering och färdig svensk NER | Inga | Baslinje för identifierare och byggsten för koppling till person. |
+| 2 | Lexikon med svensk ordanalys, med och utan NegEx | Inga | Baslinje för explicita uppgifter. Finns redan i planen. |
+| 3 | LLM via Vertex AI, zero-shot och few-shot | Inga, eller några ur dev | Troligen bäst på implicita uppgifter. Finns redan i planen. |
+| 4 | Samma instruktioner till en öppen LLM i egen miljö, till exempel Gemma eller Mistral | Inga, eller några ur dev | Visar vad det kostar i träffsäkerhet att inte skicka texterna vidare. |
+| 5 | Jev och AnyJev med Gemma, med frågor per text och per mening, på engelska och svenska | Inga | Ger sannolikheter. AnyJev körs i egen miljö. Kan också vara sållet i en kaskad. |
+| 6 | Inbäddningar per mening: likhetssökning mot dev-exempel och SetFit | Några få per kategori | Billiga lokala metoder som är byggda för få exempel. Visar om implicita uppgifter går att fånga utan stora modeller. |
+| 7 | GLiNER utan träning | Inga | Lokal spannmodell som inte behöver träningsdata. |
+| 8 | Kaskad: rad 5 eller 6 sållar, rad 3 eller 4 avgör | Som delarna | Svarar på kostnadsfrågan. |
+| Om mer träningsdata finns | Statistisk klassificerare, finjusterad encoder-modell, finjusterad Laya och finjusterad liten LLM | Hundratals till tusentals | Kräver PrivoNest eller fler genererade texter, se de öppna frågorna. |
 
 ## Om projektet växer
 
@@ -273,7 +276,8 @@ Med öppna svenska texter, som domstolsavgöranden från Domstolsverket eller me
 1. **Vilka öppna LLM:er finns i Model Garden, i vilken region och med vilka kvoter?** Svaret avgör vilka modeller som kan testas lokalt i metod 9 och 11. Frågan finns också i planen.
 2. **Klarar de flerspråkiga GLiNER- och inbäddningsmodellerna, och Jev, svenska tillräckligt bra?** Det går snabbt att ta reda på med dev-texterna, och avgör om metod 6, 7 och 10 är värda mer arbete.
 3. **Kan vi få ett konto hos TypeSafe, och vilka GPU:er har vi?** Jev finns bara i en tidig version, och det har periodvis varit stängt för nya konton. Ett konto behövs för att testa Jev. Laya kräver inget konto och går att köra utan GPU, men AnyJev med Gemma behöver en GPU.
-4. **Ska sållet i kaskaden ha en garanterad recall?** I så fall behövs fler dev-texter per kategori än de ungefär 200 som planen räknar med.
+4. **Ska sållet i kaskaden ha en garanterad recall?** I så fall behövs fler dev-texter per kategori än de ungefär 100 som planen räknar med.
+5. **Är det granskningen eller genereringen som begränsar till 400 texter?** Facit följer med när texterna skrivs. Om det är granskningen som tar tid kan fler texter genereras enbart för träning, med bara de automatiska kontrollerna. Då blir metod 5, 8 och 11, och finjusterad Laya, aktuella igen.
 
 ## Källor
 

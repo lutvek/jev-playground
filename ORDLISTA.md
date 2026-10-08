@@ -108,7 +108,7 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **Prediktion.** En metods svar för en text: vilka känsliga uppgifter metoden tror finns och var.
 
-**Test, dev och train.** Tre separata högar med texter. *Train* används för att träna modeller. *Dev* används för att prova och justera under arbetets gång. *Test* låses och används bara vid slutmätningen. Om man justerar metoderna mot testtexterna blir resultatet för bra, eftersom metoderna då har anpassats till just de texterna.
+**Test, dev och train.** Tre separata högar med texter. *Train* används för att träna modeller. *Dev* används för att prova och justera under arbetets gång. *Test* låses och används bara vid slutmätningen. Om man justerar metoderna mot testtexterna blir resultatet för bra, eftersom metoderna då har anpassats till just de texterna. I den syntetiska delen finns bara test och dev, eftersom den bara har 400 texter.
 
 **Kodväxling.** När en text blandar språk, till exempel svenska och engelska i samma mening.
 
