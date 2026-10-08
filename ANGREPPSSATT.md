@@ -6,9 +6,10 @@ Genomgången gjordes 2026-10-08 med webbsökning. Källorna står sist i dokumen
 
 ## Det viktigaste vi kom fram till
 
-1. **De fyra metodtyperna i forskningsfrågan täcker inte allt.** Tre angreppssätt saknas och är värda att ta med:
+1. **De fyra metodtyperna i forskningsfrågan täcker inte allt.** Fyra angreppssätt saknas och är värda att ta med:
    - *inbäddningar*, som jämför betydelsen hos en mening med betydelsen hos exempelmeningar
    - *zero-shot-modeller* som GLiNER, som letar efter det man beskriver med ord utan att först tränas på exempel
+   - *beslutsmodeller* som Jev, som svarar på frågor med fasta svarsalternativ och ger en sannolikhet för varje svar
    - *kombinationer*, där en billig metod sållar och en LLM bara läser det som har sållats fram
 2. **Identifierare och känsliga uppgifter är två olika problem.** Identifierare, som personnummer och namn, hittas redan bra med regex och NER. Känsliga uppgifter, särskilt de som inte sägs rakt ut, kräver metoder som förstår vad en mening betyder.
 3. **Det är på implicita uppgifter som metoderna troligen skiljer sig mest.** Forskning visar att LLM:er är bra på att lista ut uppgifter om personer ur sammanhanget. Samtidigt är tränade encoder-modeller ofta lika bra eller bättre när mönstret är tydligt. Det är just den skillnaden benchmarken är byggd för att mäta.
@@ -36,8 +37,9 @@ Metoderna skiljer sig åt på tre sätt som avgör hur de kan användas och vad 
 | 7 | Zero-shot-spannmodeller (GLiNER) | Okänt för svenska, måste testas | Nej, men kan finjusteras | Vanlig server | Ja |
 | 8 | Finjusterad encoder-modell | Explicita, och troligen många implicita | Ja, tusentals | GPU för träning | Nej |
 | 9 | LLM med instruktioner | Troligen bäst på implicita | Inga eller få | Extern eller egen GPU | Nej |
-| 10 | Finjusterad liten LLM | Som 9, men lokalt | Ja, tusentals | Egen GPU | Nej |
-| 11 | Kombinationer | Beror på delarna | Beror på delarna | Blandat | Ja |
+| 10 | Beslutsmodell (Jev) | Okänt för svenska, måste testas | Nej | Extern tjänst | Ja |
+| 11 | Finjusterad liten LLM | Som 9, men lokalt | Ja, tusentals | Egen GPU | Nej |
+| 12 | Kombinationer | Beror på delarna | Beror på delarna | Blandat | Ja |
 
 Kolumnen *Väntas klara* är en förhandsbedömning utifrån forskningen. Det är just den bedömningen benchmarken ska pröva.
 
@@ -109,7 +111,7 @@ Det finns tre varianter, med olika behov av exempel:
 
 Det finns svenska och flerspråkiga inbäddningsmodeller, till exempel KBLab:s sentence-bert-swedish-cased. De går att köra utan GPU.
 
-**Roll i benchmarken:** den billigaste lokala metoden som kan tänkas klara implicita uppgifter. Den passar också som första steg i en kaskad (metod 11).
+**Roll i benchmarken:** den billigaste lokala metoden som kan tänkas klara implicita uppgifter. Den passar också som första steg i en kaskad (metod 12).
 
 ### 7. Zero-shot-spannmodeller (GLiNER)
 
@@ -153,7 +155,34 @@ Tre praktiska råd:
 
 **Roll i benchmarken:** troligen den bästa metoden för implicita uppgifter, och därför den som visar hur bra det alls går att bli. Den finns med i planen som den andra av de två första referensmetoderna. Om samma modell också har skrivit testtexterna ska det redovisas, som planen redan säger.
 
-### 10. Finjusterad liten LLM (destillation)
+### 10. Beslutsmodeller (Jev)
+
+*Jev* är en modell från företaget TypeSafe AI som släpptes i september 2026. Den skriver ingen text. I stället skickar man in en text tillsammans med en eller flera frågor som har fasta svarsalternativ, och modellen svarar med en sannolikhet för varje alternativ. Frågorna kan vara av tre slag:
+
+- **Välj ett alternativ** (`Choice`), av upp till 255 möjliga.
+- **Placera på en skala** (`Score`).
+- **Ja eller nej** (`Noul`): hur troligt det är att ett påstående stämmer, som ett tal mellan 0 och 1.
+
+Det passar vår uppgift bra. För varje kategori kan man ställa en ja/nej-fråga, till exempel "Avslöjar texten något om en enskild persons religiösa övertygelse?", och få en sannolikhet tillbaka. Flera frågor i samma anrop tar ungefär lika lång tid som en.
+
+**Det som talar för att testa den:**
+
+- **Den ger sannolikheter.** Då kan man välja en gräns på dev-texterna och jämföra Jev med andra metoder vid samma recall. Det går sällan med en LLM.
+- **Den behöver inga exempel.** Kategorierna beskrivs i frågorna, så den kan testas direkt, även på uppgifter som inte sägs rakt ut.
+- **Den är billig och snabb.** Priset är ungefär 0,042 dollar per miljon ordbitar som skickas in, och svaren kostar inget. Det är en bråkdel av vad en stor LLM kostar. Oberoende tester anger svarstider runt 150 millisekunder.
+
+**Det som måste kontrolleras, eller talar emot:**
+
+- **Inga spann.** Jev svarar på frågor om det den får läsa, men pekar inte ut var i texten svaret finns. För att få spann kan frågorna ställas per mening, och meningen blir då spannet. Det ger fler anrop, men kostar lite.
+- **Svenska.** TypeSafe uppger att modellen främst är tränad på engelska och är sämre på andra språk, men publicerar inga siffror. En oberoende utvärdering visar att träffsäkerheten sjunker utanför engelska, mest för små språk. Ett annat test fann att det försämrar resultatet mer att översätta frågorna än att texten är på ett annat språk. Därför bör både engelska och svenska frågor testas på de svenska texterna.
+- **Var den körs.** Jev finns bara som en tjänst, hos TypeSafe och hos några mellanhänder, och körs i USA. Det finns inget dokumenterat alternativ med datacenter i EU, och den finns inte i Vertex AI. För benchmarken spelar det ingen roll, eftersom texterna är påhittade. För riktiga underrättelser innebär det att personuppgifter förs över till ett land utanför EU.
+- **Ny och föränderlig.** Tjänsten finns bara i en tidig version, och reglerna för nya konton har ändrats flera gånger. Sannolikheterna kan skilja sig ungefär 0,05 mellan två körningar av samma text. Versionen bör därför låsas när gränserna ställs in.
+
+Det finns öppna modeller som efterliknar Jev och kan köras lokalt, till exempel *Laya*, som har en flerspråkig version byggd på mmBERT. Utan träning är den svag enligt de tester som finns. Finjusterad blir den i praktiken samma sak som metod 8.
+
+**Roll i benchmarken:** ett mellanting mellan en finjusterad encoder-modell och en LLM. Den behöver inga exempel, precis som en LLM, men ger sannolikheter och är billig. Den bör testas per text och per mening, med frågor på både engelska och svenska. Den passar också som första steg i en kaskad (metod 12).
+
+### 11. Finjusterad liten LLM (destillation)
 
 En öppen, liten LLM, med några miljarder parametrar, tränas vidare på träningstexterna. Det görs vanligen med *LoRA*, en billig träningsmetod som bara ändrar en liten del av modellen. Eftersom träningstexterna är skrivna av en stor LLM överförs i praktiken den stora modellens förmåga till en liten modell som kan köras på egen GPU. Det kallas *destillation*.
 
@@ -161,11 +190,11 @@ I studien UniversalNER blev en liten modell som tränats på ChatGPT:s svar bät
 
 **Roll i benchmarken:** visar om förståelsen hos en LLM går att få i vår egen miljö till lägre kostnad. Lägre prioritet än metod 8 och 9. Den blir intressant om LLM:er visar sig vara klart bättre än encoder-modellerna.
 
-### 11. Kombinationer
+### 12. Kombinationer
 
 I praktiken används nästan alltid flera metoder tillsammans. Fyra kombinationer är värda att testa:
 
-- **Kaskad.** En billig metod med hög recall, till exempel inbäddningar (6) eller en encoder-modell (8), sållar fram de meningar som kan vara känsliga. Bara de skickas vidare till en LLM. Kostnaden sjunker med andelen som sållas bort. Risken är att sållet missar något, så dess recall ska mätas för sig. Forskning om kaskader visar stora besparingar, och att gränsen för sållet kan väljas så att en viss recall garanteras.
+- **Kaskad.** En billig metod med hög recall, till exempel inbäddningar (6), en encoder-modell (8) eller Jev (10), sållar fram de meningar som kan vara känsliga. Bara de skickas vidare till en LLM. Kostnaden sjunker med andelen som sållas bort. Risken är att sållet missar något, så dess recall ska mätas för sig. Forskning om kaskader visar stora besparingar, och att gränsen för sållet kan väljas så att en viss recall garanteras.
 - **Union.** En text flaggas om någon av metoderna flaggar den. Det höjer recall, eftersom metoderna missar olika saker, men sänker precisionen.
 - **LLM som granskare.** En billig metod flaggar brett och en LLM avgör vilka flaggor som stämmer. Det höjer precisionen.
 - **Pseudonymisera först.** Regex och NER byter ut namn och nummer i vår egen miljö innan texten skickas till en extern LLM. Då lämnar färre identifierare miljön. Det löser inte allt: den känsliga uppgiften skickas ändå, och forskning visar att en LLM ofta kan lista ut uppgifter om personer även när identifierarna är borttagna.
@@ -187,7 +216,7 @@ Utöver verktygen i [KALLOR.md](KALLOR.md#färdiga-verktyg-att-jämföra-med) fi
 Planen beskriver redan hur poängen räknas. Fyra saker behöver läggas till när metoderna jämförs:
 
 - **Jämför vid samma recall.** Många metoder ger ett tal för hur säkra de är. Då kan man välja en gräns på dev-texterna så att metoden når en bestämd recall per kategori, till exempel 0,90, och sedan jämföra precisionen på testtexterna. Annars ser en metod som flaggar mycket bra ut på recall och dålig på precision, och det går inte att säga vilken metod som är bäst. LLM:er ger sällan ett sådant tal. Då redovisas de som de är.
-- **Jämför modell A och modell B för alla metoder som tränas** (5, 6, 8 och 10). De är de metoder som kan lära sig skrivstilen i stället för uppgiften.
+- **Jämför modell A och modell B för alla metoder som tränas** (5, 6, 8 och 11). De är de metoder som kan lära sig skrivstilen i stället för uppgiften.
 - **Spann per mening.** Metoder som arbetar per mening lämnar hela meningen som spann. Det räknas som träff med poängprogrammets standardinställning, där det räcker att spannen överlappar med ett tecken, men oftast inte med `--iou 0.5`. Det ska stå i redovisningen.
 - **Mät kostnad och tid** per 1 000 texter, och ange om texterna lämnar vår miljö.
 
@@ -201,10 +230,11 @@ Listan täcker alla tre frågorna ovan: vad metoden lämnar, hur många exempel 
 | 2 | Lexikon med svensk ordanalys, med och utan NegEx | Baslinje för explicita uppgifter. Finns redan i planen. |
 | 3 | LLM via Vertex AI, zero-shot och few-shot | Troligen bäst på implicita uppgifter. Finns redan i planen. |
 | 4 | Samma instruktioner till en öppen LLM i egen miljö | Visar vad det kostar i träffsäkerhet att inte skicka texterna vidare. |
-| 5 | Statistisk klassificerare och inbäddningar, per mening | Billiga lokala metoder. Visar om implicita uppgifter går att fånga utan stora modeller. |
-| 6 | Finjusterad svensk encoder-modell, per mening och per ord | Den viktigaste lokala kandidaten. |
-| 7 | GLiNER, utan träning och finjusterad | Lokal spannmodell som inte behöver träningsdata. |
-| 8 | Kaskad: 5 eller 6 sållar, 3 eller 4 avgör | Svarar på kostnadsfrågan. |
+| 5 | Jev, med frågor per text och per mening, på engelska och svenska | Behöver inga exempel, ger sannolikheter och är billig. Kan också vara sållet i en kaskad. |
+| 6 | Statistisk klassificerare och inbäddningar, per mening | Billiga lokala metoder. Visar om implicita uppgifter går att fånga utan stora modeller. |
+| 7 | Finjusterad svensk encoder-modell, per mening och per ord | Den viktigaste lokala kandidaten. |
+| 8 | GLiNER, utan träning och finjusterad | Lokal spannmodell som inte behöver träningsdata. |
+| 9 | Kaskad: rad 5, 6 eller 7 sållar, rad 3 eller 4 avgör | Svarar på kostnadsfrågan. |
 | Senare | Finjusterad liten LLM | Om LLM:er är klart bättre än encoder-modellerna. |
 
 ## Om projektet växer
@@ -215,13 +245,14 @@ Med öppna svenska texter, som domstolsavgöranden från Domstolsverket eller me
 
 ## Öppna frågor
 
-1. **Vilka öppna LLM:er finns i Model Garden, i vilken region och med vilka kvoter?** Svaret avgör vilka modeller som kan testas i metod 4 och 10. Frågan finns också i planen.
-2. **Klarar de flerspråkiga GLiNER- och inbäddningsmodellerna svenska tillräckligt bra?** Det går snabbt att ta reda på med dev-texterna, och avgör om metod 6 och 7 är värda mer arbete.
-3. **Ska sållet i kaskaden ha en garanterad recall?** I så fall behövs fler dev-texter per kategori än de ungefär 200 som planen räknar med.
+1. **Vilka öppna LLM:er finns i Model Garden, i vilken region och med vilka kvoter?** Svaret avgör vilka modeller som kan testas lokalt i metod 9 och 11. Frågan finns också i planen.
+2. **Klarar de flerspråkiga GLiNER- och inbäddningsmodellerna, och Jev, svenska tillräckligt bra?** Det går snabbt att ta reda på med dev-texterna, och avgör om metod 6, 7 och 10 är värda mer arbete.
+3. **Kan vi få ett konto hos TypeSafe?** Jev finns bara i en tidig version, och det har periodvis varit stängt för nya konton. Ett konto behövs för att testa metod 10.
+4. **Ska sållet i kaskaden ha en garanterad recall?** I så fall behövs fler dev-texter per kategori än de ungefär 200 som planen räknar med.
 
 ## Källor
 
-Genomgången gjordes med webbsökning. Webbplatsen arxiv.org gick inte att nå från molnmiljön, så uppgifterna om forskningsartiklarna kommer från sammanfattningar och sökträffar, inte från artiklarna själva. Siffrorna är författarnas egna och har inte kontrollerats av någon annan.
+Genomgången gjordes med webbsökning. Webbplatsen arxiv.org gick inte att nå från molnmiljön, så uppgifterna om forskningsartiklarna kommer från sammanfattningar och sökträffar, inte från artiklarna själva. Siffrorna är författarnas egna och har inte kontrollerats av någon annan. Jev är så ny att nästan alla uppgifter om den kommer från andra än TypeSafe, som bloggar och oberoende tester, och de stämmer inte alltid överens.
 
 **LLM:er och implicita uppgifter**
 
@@ -244,6 +275,15 @@ Genomgången gjordes med webbsökning. Webbplatsen arxiv.org gick inte att nå f
 - [GLiClass](https://huggingface.co/knowledgator/gliclass-base-v3.0), klassificering av hela texter med samma idé som GLiNER.
 - mmBERT [arXiv 2509.06888](https://arxiv.org/abs/2509.06888) och EuroBERT [arXiv 2503.05500](https://arxiv.org/abs/2503.05500), nyare flerspråkiga encoder-modeller.
 - Szawerna m.fl. 2024, *Detecting Personal Identifiable Information in Swedish Learner Essays*. [ACL Anthology](https://aclanthology.org/2024.caldpseudo-1.7/)
+
+**Jev**
+
+- [TypeSafe AI, API-dokumentation](https://docs.typesafe.ai/api)
+- Deußer, Sparrenberg och Sifa 2026, *Evaluating and Benchmarking the System One Model Jev*. [arXiv 2609.37647](https://arxiv.org/abs/2609.37647)
+- [Galtea: Does an AI judge need to speak your customer's language?](https://galtea.ai/blog/multilingual-llm-judge-benchmark), om frågor på andra språk än engelska.
+- [innFactory om Jev](https://innfactory.ai/en/ai-models/typesafe-jev/) och [Colchix om Jev och GDPR](https://colchix.com/blog/can-european-enterprises-use-jev), om var tjänsten körs.
+- [awesome-typesafe-jev](https://github.com/AbdelStark/awesome-typesafe-jev), en samling verktyg och oberoende utvärderingar.
+- [Laya](https://www.llmreference.com/model-family/laya), ett öppet alternativ som kan köras lokalt.
 
 **Destillation och kombinationer**
 

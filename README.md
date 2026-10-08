@@ -15,7 +15,7 @@ Projektet ska ta reda på vilka metoder som klarar det bäst, och vad de kostar.
 1. **[FORSKNINGSFRAGA.md](FORSKNINGSFRAGA.md):** problemet, målet och de tre frågor projektet ska besvara.
 2. **[PLAN_BENCHMARK.md](PLAN_BENCHMARK.md):** hur testmaterialet tas fram, utan riktiga texter och utan att någon behöver märka upp texter för hand.
 3. **[KALLOR.md](KALLOR.md):** vilka färdiga dataset, texter och verktyg som finns, och vilka vi använder.
-4. **[ANGREPPSSATT.md](ANGREPPSSATT.md):** vilka sorters metoder som är värda att testa, från regex och ordlistor till LLM:er och kombinationer av dem.
+4. **[ANGREPPSSATT.md](ANGREPPSSATT.md):** vilka sorters metoder som är värda att testa, från regex och ordlistor till Jev, LLM:er och kombinationer av dem.
 5. **[benchmark/README.md](benchmark/README.md):** hur man kör koden, hur formatet ser ut, hur poängen räknas och vilka brister datan har.
 
 Begrepp som kan vara obekanta, som *recall*, *spann* och *LLM*, förklaras i **[ORDLISTA.md](ORDLISTA.md)**.
