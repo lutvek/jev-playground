@@ -1,85 +1,128 @@
 # Källor för benchmark-datasetet
 
-Inventering gjord 2026-10-08 med sökningar på Hugging Face, Språkbanken, svenska myndigheters öppna data, GitHub och forskningslitteratur. Hör ihop med [PLAN_BENCHMARK.md](PLAN_BENCHMARK.md).
+Här går vi igenom vilka färdiga dataset, texter och verktyg som finns och om de går att använda i benchmarken. Genomgången gjordes 2026-10-08. Den omfattar Hugging Face, Språkbanken, svenska myndigheters öppna data, GitHub och forskningslitteratur.
 
-**Verifieringsnivå:**
+Planen som bygger på genomgången står i [PLAN_BENCHMARK.md](PLAN_BENCHMARK.md). Begrepp som kan vara obekanta förklaras i [ORDLISTA.md](ORDLISTA.md).
 
-- **[V]** Vi har laddat ner data och räknat själva.
-- **[D]** Kontrollerat mot dokumentation eller kod på GitHub.
-- **[S]** Bara sett i sökmotorutdrag. Måste kontrolleras innan användning.
+## Hur säkra uppgifterna är
 
-Molnmiljön där sökningen gjordes blockerade huggingface.co, spraakbanken.gu.se, domstol.se, jo.se, skatteverket.se, scb.se med flera. Bara GitHub gick att nå. Därför är flera Hugging Face-dataset och svenska källor bara verifierade på nivå [S] eller [D].
+Alla källor har inte gått att kontrollera lika noga. Molnmiljön där genomgången gjordes nådde bara GitHub. Webbplatser som huggingface.co, spraakbanken.gu.se, domstol.se, jo.se, skatteverket.se och scb.se var blockerade.
 
-## Slutsatser
+Varje källa är därför märkt med hur väl vi har kontrollerat den:
 
-1. **Det finns inget svenskt dataset med riktig text och art. 9-annotering.** Inte på Hugging Face, inte hos Språkbanken och inte i publicerad forskning.
-2. **Det finns inget dataset, på något språk, som annoterar implicita art. 9-uttryck om identifierbara personer.** Det närmaste är SynthPAI, som har implicita attribut men inte art. 9-kategorier. Den implicita dimensionen måste vi bygga själva.
-3. **Två LLM-genererade flerspråkiga dataset har svensk text med art. 9- och art. 10-etiketter:** REDACT (verifierat) och PrivoNest (overifierat). Båda innehåller nästan bara explicita uttryck.
-4. **Fackmedlemskap, lagöverträdelser och genetiska/biometriska uppgifter är tunnast överallt.** Etniskt ursprung finns bara i PrivoNest och engelska TAB.
-5. **"SEX" betyder kön** i både TAB och SynthPAI, inte sexualliv eller sexuell läggning.
-6. **Bästa källan till riktig svensk text är Domstolsverkets öppna API för rättspraxis.** Migrationsmål innehåller ofta religion, sexuell läggning, etniskt ursprung och politisk åsikt, ofta implicit. Arbetsdomstolen ger fackmedlemskap.
+| Märkning | Betyder |
+|---|---|
+| **[V]** verifierad | Vi har laddat ner datan och räknat själva. |
+| **[D]** dokumenterad | Vi har läst källans dokumentation eller kod på GitHub, men inte undersökt själva datan. |
+| **[S]** sökträff | Vi har bara sett källan i en sökmotors träfflista. Uppgifterna måste kontrolleras innan källan används. |
 
-## Används i PoC:n
+## Det viktigaste vi kom fram till
 
-| Källa | Vad | Licens och åtkomst | Användning | Nivå |
-|---|---|---|---|---|
-| **REDACT**, svenska delen<br>[GitHub](https://github.com/guneeshvats/REDACT-PII-Benchmark), [HF](https://huggingface.co/datasets/guneeshv/REDACT-PII-Benchmark) (gated) | 561 svenska LLM-genererade dokument (e-post, ärendeanteckningar, chatt) i bland annat myndighetsdomäner. 157 dokument har art. 9/10-spann: hälsa 192, brott 82, sjukskrivning 74, allergi 52, fack 38, religion 15, parti 15, sexuell läggning 7. 364 personnummer. | Egna "REDACT Dataset Terms": forskning och benchmarking tillåts med attribution, profilering och återidentifiering förbjuds. Koden är MIT. | Extern kontroll av explicita uttryck och identifierare. | [V] |
-| **PrivoNest**, svenska delen<br>[HF](https://huggingface.co/datasets/abbasrazalagha/PrivoNest_Multilingual_Privacy_Dataset) | Enligt kortet 8 545 svenska rader (6 968 train, 391 val, 1 186 test) med 88 etiketter, bland annat alla art. 9-kategorier och `CRIMINAL_RECORD`. | Apache-2.0 enligt kortet. | Om ett stickprov håller måttet: extra testdata och träningsdata för encoder-modeller. En enskild uppladdare och okänd genereringsmetod, och vi har inte sett några rader. | [S] |
+1. **Det finns inget svenskt dataset med riktiga texter där känsliga uppgifter är uppmärkta.** Varken på Hugging Face, hos Språkbanken eller i publicerad forskning.
+2. **Det finns inget dataset, på något språk, som märker ut känsliga uppgifter som går att lista ut av sammanhanget.** Det närmaste är SynthPAI, som har uppgifter om personer som går att lista ut av sammanhanget, men inte de känsliga kategorierna i GDPR artikel 9. Den delen måste vi alltså bygga själva.
+3. **Två AI-skrivna, flerspråkiga dataset har svenska texter där känsliga uppgifter och brott är märkta.** Det är REDACT, som vi har kontrollerat, och PrivoNest, som vi inte har kunnat kontrollera. I båda sägs uppgifterna nästan alltid rakt ut.
+4. **Fackmedlemskap, brott och genetiska eller biometriska uppgifter är de kategorier där det finns minst data överallt.** Etniskt ursprung finns bara i PrivoNest och i det engelska datasetet TAB.
+5. **Se upp med etiketten "SEX".** I både TAB och SynthPAI betyder den kön, inte sexualliv eller sexuell läggning.
+6. **Den bästa källan till riktig svensk text är Domstolsverkets öppna gränssnitt för rättspraxis.** Där kan ett program hämta domstolsavgöranden. Migrationsmål handlar ofta om skälen till att någon söker asyl, och innehåller därför ofta religion, sexuell läggning, etniskt ursprung och politisk åsikt, ofta uttryckt indirekt. Arbetsdomstolens avgöranden innehåller fackmedlemskap.
 
-## Användbart om projektet växer (kräver annotering)
+## Källor som används i PoC:n
 
-Riktig svensk text, men utan etiketter. Utanför PoC:n eftersom vi inte annoterar.
+### REDACT, svenska delen [V]
 
-| Källa | Vad | Licens och åtkomst | Användning | Nivå |
-|---|---|---|---|---|
-| **Domstolsverkets Rättspraxis-API**<br>`https://rattspraxis.etjanst.domstol.se/api/v1` | Avgöranden från HD, HFD, hovrätter, kammarrätter, Arbetsdomstolen och Migrationsöverdomstolen. Hela avgöranden som PDF sedan mars 2025, referat sedan 1981. Parter anges med initialer. | Öppna data, ingen inloggning. | Utdrag som vi annoterar själva: riktigt språk. Migrationsmål ger religion, sexuell läggning, etniskt ursprung och politik. Arbetsdomstolen ger fack. Kammarrätternas LVU/LVM-mål ger hälsa. Hovrätterna ger brott. | [D] |
-| **JO-beslut**<br>[jo.se](https://www.jo.se/jo-beslut/sokresultat/) | Beslut om klagomål på myndigheter, ofta socialtjänst, polis och psykiatri. Ingen bulknedladdning, en PDF per beslut. Lagen.nu-motorn [ferenda](https://github.com/staffanm/ferenda) har kod som hämtar dem. | Allmänna handlingar. | Utdrag att annotera. Närmast myndighetsgenren. | [D] |
-| **Flashback och Familjeliv** via Språkbanken/Korp | Mycket stora forumkorpusar, till exempel Familjeliv "Känsliga rummet" och Flashback "Droger" och "Sex". | CC BY 4.0. **Nedladdningarna har omkastade meningar och Korp visar bara en mening som sammanhang.** | En separat meningsnivåsamling med informella, ofta implicita uttryck och svåra negativa exempel. Inga användarnamn sparas. | [S]/[D] |
+- **Var:** [GitHub](https://github.com/guneeshvats/REDACT-PII-Benchmark) och [Hugging Face](https://huggingface.co/datasets/guneeshv/REDACT-PII-Benchmark). På Hugging Face måste man logga in och godkänna villkoren innan man kan ladda ner.
+- **Vad:** 561 svenska texter som en AI har skrivit, till exempel e-post, ärendeanteckningar och chattar, bland annat i myndighetsmiljöer. 157 av texterna innehåller känsliga uppgifter eller brott. Antal märkta uppgifter: hälsa 192, brott 82, sjukskrivning 74, allergi 52, fack 38, religion 15, parti 15 och sexuell läggning 7. Dessutom finns 364 personnummer.
+- **Villkor:** Datasetet har egna villkor, "REDACT Dataset Terms". Forskning och benchmarking är tillåtet om man anger källan. Det är förbjudet att använda datan för att kartlägga personer (profilering) eller för att försöka ta reda på vilka riktiga personer som ligger bakom (återidentifiering). Koden har MIT-licens, som tillåter nästan all användning.
+- **Används till:** att kontrollera våra resultat mot data som någon annan har byggt, för uppgifter som sägs rakt ut och för identifierare.
 
-## Mallar för schema och metod
+Hur vi har gjort om datasetet till vårt format står i [benchmark/README.md](benchmark/README.md).
 
-| Källa | Vad vi tar från den | Nivå |
-|---|---|---|
-| **TAB** (Text Anonymization Benchmark)<br>[GitHub](https://github.com/NorskRegnesentral/text-anonymization-benchmark), MIT | Annoteringsschemat: direkta och indirekta identifierare, känsliga attribut (`HEALTH`, `POLITICS`, `ETHNIC`, `BELIEF`, `SEX`) på spann, samt koreferens. Fackmedlemskap ingår i `POLITICS`. Lagöverträdelser saknas. | [V] |
-| **W3C DPV-PD**<br>[GitHub](https://github.com/w3c/dpv) | Taxonomi med klasser för alla art. 9-kategorier och för lagöverträdelser. Används för kategoridefinitionerna. | [V] |
-| **SynthPAI**<br>[GitHub](https://github.com/eth-sri/SynthPAI) | Svårighetsskala 1–5 för implicita uttryck och en metod för att generera text från fiktiva profiler. Har inga art. 9-kategorier. Licensen är MIT på GitHub men uppges vara CC BY-NC-SA på HF. | [V] |
-| **ConfAIde**, **PrivacyLens** | Recept för att generera berättelser om namngivna personer med känsliga uppgifter. | [V] |
-| **SweLL / Mormor Karl** (Språkbanken) | Svensk tagguppsättning för pseudonymisering av identifierare. Själva datan delas inte. | [D] |
+### PrivoNest, svenska delen [S]
 
-## Byggstenar för syntetisk data
+- **Var:** [Hugging Face](https://huggingface.co/datasets/abbasrazalagha/PrivoNest_Multilingual_Privacy_Dataset).
+- **Vad:** Enligt datasetets beskrivning 8 545 svenska rader: 6 968 för träning, 391 för validering och 1 186 för test. Det har 88 olika etiketter, bland annat alla känsliga kategorier i artikel 9 och `CRIMINAL_RECORD` för brott.
+- **Villkor:** Apache-2.0 enligt beskrivningen, en öppen licens som tillåter fri användning.
+- **Används till:** om ett stickprov visar att kvaliteten håller, som extra testmaterial och som träningsdata för encoder-modellerna.
+- **Förbehåll:** Datasetet är uppladdat av en enskild person, det är okänt hur texterna har tagits fram och vi har inte sett en enda rad av det.
 
-| Källa | Vad | Nivå |
-|---|---|---|
-| **Skatteverkets testpersonnummer**<br>API: `https://skatteverket.entryscape.net/rowstore/dataset/b4de7df7-63c0-4e7e-bb59-1f156a591763` | Cirka 40 000 personnummer som aldrig delas ut till riktiga personer. Får användas för test. | [D] |
-| **Svenska namn med frekvenser**<br>[svensktext/namn](https://github.com/peterdalle/svensktext/tree/master/namn) | Förnamn och efternamn från SCB (2020) med antal bärare. Repot saknar licensfil. SND 2021-272 har namn per födelseland (CC BY 4.0). | [D] |
-| **swedish-personas**<br>[HF](https://huggingface.co/datasets/birgermoell/swedish-personas) | 100 000 syntetiska personer, samplade från SCB-statistik. CC BY 4.0. Kan användas som frö för scenariospecar. | [S] |
-| **Fiktiva identifierare**<br>[maskera TEST_DATA.md](https://github.com/joelhagvall/maskera/blob/main/docs/TEST_DATA.md) | Lista över telefonnummer reserverade för fiktion, exempeladresser, testkonton med mera. | [D] |
+## Källor om projektet växer
 
-## Baslinjer för metodjämförelsen
+De här källorna innehåller riktiga svenska texter men inget facit. Någon måste märka upp dem för hand, och det ingår inte i PoC:n.
 
-Detta är verktyg och modeller, inte dataset. De är relevanta för frågeställning 2.
+### Domstolsverkets Rättspraxis-API [D]
 
-| Verktyg/modell | Vad | Nivå |
-|---|---|---|
-| [okasi/swedish-pii](https://github.com/okasi/swedish-pii) | Svenska lexikonbaserade detektorer, bland annat för religion, politisk ideologi, fack och sexuell läggning. MIT. Bra regelbaserad baslinje för explicita uttryck. | [V] |
-| [sparv-sbx-pi-detection](https://github.com/spraakbanken/sparv-sbx-pi-detection) | Språkbankens KB-BERT-modeller för identifierare. Enligt README sämre utanför sin domän. | [D] |
-| KB/bert-base-swedish-cased-ner, joelhagvall/maskera-sv-ner | Svensk NER för namn, platser och organisationer. | [S] |
-| tabularisai/eu-pii-safeguard, bardsai/eu-pii-anonimization-multilang | Flerspråkiga PII-modeller. Den senare uppger att den har art. 9-klasser. | [S] |
+- **Adress:** `https://rattspraxis.etjanst.domstol.se/api/v1`
+- **Vad:** Avgöranden från Högsta domstolen, Högsta förvaltningsdomstolen, hovrätterna, kammarrätterna, Arbetsdomstolen och Migrationsöverdomstolen. Hela avgöranden finns som PDF från mars 2025, och sammanfattningar (referat) från 1981. Parterna anges med initialer.
+- **Villkor:** Öppna data. Ingen inloggning krävs.
+- **Används till:** utdrag som vi märker upp själva, för att få riktigt språk. Olika domstolar ger olika kategorier:
+  - Migrationsmål: religion, sexuell läggning, etniskt ursprung och politisk åsikt.
+  - Arbetsdomstolen: fackmedlemskap.
+  - Kammarrätternas mål om tvångsvård enligt LVU (lagen om vård av unga) och LVM (lagen om vård av missbrukare): hälsa.
+  - Hovrätterna: brott.
+
+### JO-beslut [D]
+
+- **Var:** [jo.se](https://www.jo.se/jo-beslut/sokresultat/)
+- **Vad:** Justitieombudsmannens beslut om klagomål på myndigheter, ofta socialtjänst, polis och psykiatri. Det går inte att ladda ner alla på en gång, utan varje beslut är en egen PDF. Programmet [ferenda](https://github.com/staffanm/ferenda), som ligger bakom webbplatsen lagen.nu, har kod som hämtar dem.
+- **Villkor:** Allmänna handlingar.
+- **Används till:** utdrag att märka upp. Det här är de texter som ligger närmast myndighetstexter.
+
+### Flashback och Familjeliv, via Språkbanken och Korp [S]/[D]
+
+- **Vad:** Mycket stora samlingar av inlägg från diskussionsforum, till exempel Familjelivs "Känsliga rummet" och Flashbacks avdelningar "Droger" och "Sex".
+- **Villkor:** CC BY 4.0, alltså fri användning om man anger källan.
+- **Viktig begränsning:** I filerna som går att ladda ner ligger meningarna i omkastad ordning, och sökverktyget Korp visar bara en mening i taget. Det går alltså inte att läsa längre sammanhängande inlägg.
+- **Används till:** en separat samling enskilda meningar med vardagligt språk. Den skulle ge många uppgifter som sägs indirekt, och många meningar som liknar känsliga utan att vara det. Inga användarnamn sparas.
+
+## Förebilder för formatet och metoden
+
+De här källorna används inte som data. Vi har hämtat idéer från dem om hur facit ska vara uppbyggt och hur texter kan genereras.
+
+- **TAB, Text Anonymization Benchmark** ([GitHub](https://github.com/NorskRegnesentral/text-anonymization-benchmark), MIT-licens) [V]. Ett engelskt dataset för anonymisering av domar från Europadomstolen. Vi har tagit efter hur märkningen är uppbyggd:
+  - *Direkta identifierare*, som pekar ut en person på egen hand, till exempel ett namn.
+  - *Indirekta identifierare*, som kan peka ut en person tillsammans med andra uppgifter, till exempel yrke och hemort.
+  - *Känsliga uppgifter* som märks på textbitar: `HEALTH`, `POLITICS`, `ETHNIC`, `BELIEF` och `SEX` (som betyder kön).
+  - *Koreferens*, alltså att olika omnämnanden, som "Erik Lund" och "han", märks som samma person.
+
+  I TAB ingår fackmedlemskap i `POLITICS`, och brott finns inte med.
+- **W3C DPV-PD** ([GitHub](https://github.com/w3c/dpv)) [V]. En standardiserad begreppslista för personuppgifter från W3C, organisationen bakom webbens standarder. Den har en klass för varje känslig kategori i artikel 9 och för lagöverträdelser. Vi använder den för att definiera våra kategorier.
+- **SynthPAI** ([GitHub](https://github.com/eth-sri/SynthPAI)) [V]. Har en skala från 1 till 5 för hur svårt det är att lista ut en uppgift som inte sägs rakt ut, och en metod för att låta en AI skriva texter utifrån påhittade personprofiler. Den har inte de känsliga kategorierna i artikel 9. Licensen är MIT på GitHub men uppges vara CC BY-NC-SA, som förbjuder kommersiell användning, på Hugging Face.
+- **ConfAIde och PrivacyLens** [V]. Recept för att låta en AI skriva berättelser om namngivna personer med känsliga uppgifter.
+- **SweLL och Mormor Karl** (Språkbanken) [D]. En svensk uppsättning etiketter för att byta ut identifierare mot påhittade (pseudonymisering). Själva texterna delas inte.
+
+## Byggstenar för de AI-skrivna texterna
+
+Det här är listor som generatorn kan hämta realistiska men påhittade uppgifter från.
+
+- **Skatteverkets testpersonnummer** [D]. Ungefär 40 000 personnummer som aldrig delas ut till riktiga personer och som får användas för test. Går att hämta från `https://skatteverket.entryscape.net/rowstore/dataset/b4de7df7-63c0-4e7e-bb59-1f156a591763`.
+- **Svenska namn med frekvenser** ([svensktext/namn](https://github.com/peterdalle/svensktext/tree/master/namn)) [D]. Förnamn och efternamn från SCB (2020) med uppgift om hur många som bär varje namn, så att vanliga namn kan bli vanliga även i våra texter. Förrådet saknar licensfil, så det är oklart vad som är tillåtet. Svensk nationell datatjänst har en annan samling, SND 2021-272, med namn uppdelade per födelseland under licensen CC BY 4.0.
+- **swedish-personas** ([Hugging Face](https://huggingface.co/datasets/birgermoell/swedish-personas)) [S]. 100 000 påhittade personer, framtagna så att de följer SCB:s statistik. CC BY 4.0. Kan användas som utgångspunkt när scenariospecarna slumpas fram.
+- **Fiktiva identifierare** ([maskera TEST_DATA.md](https://github.com/joelhagvall/maskera/blob/main/docs/TEST_DATA.md)) [D]. En lista över telefonnummer som är reserverade för film, böcker och liknande, exempeladresser, testkonton och annat som går att använda utan att peka ut någon riktig person.
+
+## Färdiga verktyg att jämföra med
+
+Det här är verktyg och modeller, inte dataset. De är aktuella som referensmetoder när metoderna jämförs i fråga 2.
+
+- **[okasi/swedish-pii](https://github.com/okasi/swedish-pii)** [V]. Svenska ordlistor som letar efter bland annat religion, politisk ideologi, fackmedlemskap och sexuell läggning. MIT-licens. En bra regelbaserad referensmetod för uppgifter som sägs rakt ut.
+- **[sparv-sbx-pi-detection](https://github.com/spraakbanken/sparv-sbx-pi-detection)** [D]. Språkbankens modeller för identifierare, byggda på KB-BERT, en svensk encoder-modell från Kungliga biblioteket. Enligt beskrivningen fungerar de sämre på andra sorters texter än de har tränats på.
+- **KB/bert-base-swedish-cased-ner** och **joelhagvall/maskera-sv-ner** [S]. Svenska NER-modeller, alltså modeller som känner igen namn på personer, platser och organisationer.
+- **tabularisai/eu-pii-safeguard** och **bardsai/eu-pii-anonimization-multilang** [S]. Flerspråkiga modeller för personuppgifter. Den senare uppger att den kan känna igen de känsliga kategorierna i artikel 9.
 
 ## Undersökta men inte användbara nu
 
-- **Stockholm EPR PHI-korpusen** (kliniska journaler): bara för forskare vid SU med etikprövning.
-- **SweLL-gold**: kräver ansökan och har bara en samlad etikett `sensitive`.
-- **i2b2/n2c2 2014**: engelska och bara identifierare, kräver avtal.
-- **Gretel finance multilingual** och äldre **ai4privacy**-versioner: ingen (säker) svenska, bara identifierare.
-- **BiaSWE**, svenska hatdatasets och **Riksdagens öppna data**: handlar om grupper eller offentliga personer. Kan ge svåra negativa exempel men inte positiva.
-- **SPeDaC**: kräver avtal med författarna.
-- **SUC 3.0/SUCX, swedish_ner_corpus, wikiann, MAPA**: bara namn, platser och organisationer.
-- **swelaw** (HF): rå juridisk text där namnen mestadels är borttagna. Rättspraxis-API:et ger samma sak med bättre metadata.
+| Källa | Varför den inte används |
+|---|---|
+| **Stockholm EPR PHI-korpusen** (patientjournaler) | Får bara användas av forskare vid Stockholms universitet, med godkänd etikprövning. |
+| **SweLL-gold** | Kräver ansökan, och alla känsliga uppgifter har samma etikett, `sensitive`, utan uppdelning i kategorier. |
+| **i2b2/n2c2 2014** | På engelska, har bara identifierare och kräver avtal. |
+| **Gretel finance multilingual** och äldre versioner av **ai4privacy** | Har ingen svenska, eller så är det osäkert om de har det, och de har bara identifierare. |
+| **BiaSWE**, svenska dataset om hatiska uttalanden och **Riksdagens öppna data** | Handlar om grupper eller offentliga personer, inte om privatpersoner. Kan ge meningar som liknar känsliga utan att vara det, men inga riktiga exempel. |
+| **SPeDaC** | Kräver avtal med författarna. |
+| **SUC 3.0/SUCX**, **swedish_ner_corpus**, **wikiann** och **MAPA** | Har bara namn, platser och organisationer märkta. |
+| **swelaw** (Hugging Face) | Juridisk text utan märkning, där namnen för det mesta redan är borttagna. Rättspraxis-API:et ger samma sorts text med bättre uppgifter om varje avgörande. |
 
-## Relaterat arbete att läsa
+## Forskning att läsa
 
-- Pilán m.fl. 2022, TAB, *Computational Linguistics*.
-- Szawerna m.fl. 2024–2025 (Språkbanken): PII-detektion i svenska elevtexter.
-- arXiv 2507.10582: anonymisering av 10 842 svenska LVM-domar med LLM. Datan delas bara med etikprövade forskare.
-- Examensarbete vid Mittuniversitetet, "Identifying Sensitive Data using NER with LLMs" (diva2:1876988). Innehållet har vi inte kontrollerat.
+- **Pilán m.fl. 2022**, *Computational Linguistics*. Artikeln som beskriver TAB.
+- **Szawerna m.fl. 2024–2025** (Språkbanken). Om att automatiskt hitta personuppgifter i svenska elevtexter.
+- **arXiv 2507.10582.** Om att anonymisera 10 842 svenska LVM-domar med hjälp av en LLM. Datan delas bara med forskare som har godkänd etikprövning.
+- **Examensarbete vid Mittuniversitetet**, "Identifying Sensitive Data using NER with LLMs" (diva2:1876988). Vi har inte kontrollerat innehållet.
