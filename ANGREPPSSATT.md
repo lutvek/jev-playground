@@ -37,7 +37,7 @@ Metoderna skiljer sig åt på tre sätt som avgör hur de kan användas och vad 
 | 7 | Zero-shot-spannmodeller (GLiNER) | Okänt för svenska, måste testas | Nej, men kan finjusteras | Vanlig server | Ja |
 | 8 | Finjusterad encoder-modell | Explicita, och troligen många implicita | Ja, tusentals | GPU för träning | Nej |
 | 9 | LLM med instruktioner | Troligen bäst på implicita | Inga eller få | Extern eller egen GPU | Nej |
-| 10 | Beslutsmodell (Jev) | Okänt för svenska, måste testas | Nej | Extern tjänst | Ja |
+| 10 | Beslutsmodell (Jev och den öppna varianten Kev) | Okänt för svenska, måste testas | Nej, men Kev kan finjusteras | Jev: extern tjänst. Kev: egen GPU | Ja |
 | 11 | Finjusterad liten LLM | Som 9, men lokalt | Ja, tusentals | Egen GPU | Nej |
 | 12 | Kombinationer | Beror på delarna | Beror på delarna | Blandat | Ja |
 
@@ -178,9 +178,29 @@ Det passar vår uppgift bra. För varje kategori kan man ställa en ja/nej-fråg
 - **Var den körs.** Jev finns bara som en tjänst, hos TypeSafe och hos några mellanhänder, och körs i USA. Det finns inget dokumenterat alternativ med datacenter i EU, och den finns inte i Vertex AI. För benchmarken spelar det ingen roll, eftersom texterna är påhittade. För riktiga underrättelser innebär det att personuppgifter förs över till ett land utanför EU.
 - **Ny och föränderlig.** Tjänsten finns bara i en tidig version, och reglerna för nya konton har ändrats flera gånger. Sannolikheterna kan skilja sig ungefär 0,05 mellan två körningar av samma text. Versionen bör därför låsas när gränserna ställs in.
 
-Det finns öppna modeller som efterliknar Jev och kan köras lokalt, till exempel *Laya*, som har en flerspråkig version byggd på mmBERT. Utan träning är den svag enligt de tester som finns. Finjusterad blir den i praktiken samma sak som metod 8.
+#### Öppna varianter av Jev
 
-**Roll i benchmarken:** ett mellanting mellan en finjusterad encoder-modell och en LLM. Den behöver inga exempel, precis som en LLM, men ger sannolikheter och är billig. Den bör testas per text och per mening, med frågor på både engelska och svenska. Den passar också som första steg i en kaskad (metod 12).
+Jevs egna vikter är inte offentliga. Sedan Jev släpptes har det kommit många öppna modeller som arbetar på samma sätt. Nästan alla bygger på en öppen språkmodell och läser sannolikheten för varje svarsalternativ direkt ur modellen, i stället för att låta den skriva ett svar. De härmar alltså hur Jev arbetar, men inte hur Jev är tränad. Fyra är värda att känna till:
+
+| Variant | Vad det är | Licens | Svenska | Bedömning |
+|---|---|---|---|---|
+| **Kev** | Fyra storlekar, med 0,8, 4, 9 och 27 miljarder parametrar, byggda på Qwen. Samma API som Jev. | Apache-2.0 | Bara utvärderad på engelska | Den bästa kandidaten, se nedan. |
+| **Laya** | En liten modell, 322 miljoner parametrar, byggd på mmBERT. Går att köra utan GPU. | Apache-2.0 | Byggd för över 100 språk | Svag utan träning. Finjusterad blir den i praktiken samma sak som metod 8. |
+| **SemIf** | Inget eget modellbygge, utan ett program som läser svarssannolikheter ur valfri öppen LLM. | MIT | Beror på vilken LLM man väljer | Ett sätt att använda en öppen LLM som är bra på svenska på samma sätt som Jev. |
+| **autotrust/JEV** | Qwen3.5-9B, tränad att ge samma svar som Jev. | Oklar för 9B-versionen | Okänt | Ligger närmast Jev, men licensen måste redas ut först. |
+
+Det finns också en topplista, JevBench, med över hundra öppna modeller av det här slaget. Den drivs av en enda aktör, metoden är omstridd och de modeller som ligger högst är tränade för engelska. Den är en plats att leta på, inte ett facit.
+
+**Kev är den bästa kandidaten**, av fyra skäl:
+
+- **Samma API som Jev.** Ett program som anropar Jev kan anropa Kev genom att bara byta adress. Då kan Jev och Kev jämföras med exakt samma frågor.
+- **Den körs i vår egen miljö.** Vikterna är öppna och versionslåsta, med checksummor. Kev-0,8B går på en liten GPU, Kev-4B och Kev-9B behöver en GPU av typen L40S eller H100, och Kev-27B en GPU med 80 GB minne. Inga texter lämnar då vår miljö, vilket löser problemet med att Jev körs i USA.
+- **Den kan finjusteras.** Kev tränas vidare med exempel i samma format som frågorna, med rätt svar ifyllt. De syntetiska träningstexterna kan göras om till det formatet: en ja/nej-fråga per kategori, med svaret från facit. Enligt utvecklaren hjälper en kort finjustering mer än att formulera om frågorna, särskilt för andra språk än engelska.
+- **Den ligger nära Jev.** Enligt utvecklarens egna mätningar ligger Kev-27B inom en procentenhet från Jev på datakällor som Kev inte har tränats på (0,851 mot 0,857 rätt), och Kev-4B och Kev-9B inom fyra.
+
+Det som talar emot: Kev är bara utvärderad på engelska, och modellkorten anger att andra språk inte är testade. Grundmodellen Qwen är flerspråkig, så Kev kan fungera på svenska ändå, men det måste mätas. Alla siffror är utvecklarens egna. Kev-0,8B, 4B och 9B är bara kontrollerade för texter upp till ungefär 8 000 ordbitar, men det räcker för våra texter.
+
+**Roll i benchmarken:** ett mellanting mellan en finjusterad encoder-modell och en LLM. Den behöver inga exempel, precis som en LLM, men ger sannolikheter och är billig. Jev och Kev bör testas med samma frågor, per text och per mening, med frågor på både engelska och svenska. Kev testas både utan träning och finjusterad på träningstexterna. Skillnaden mellan Jev och Kev visar vad det kostar i träffsäkerhet att stanna i vår egen miljö. Båda passar också som första steg i en kaskad (metod 12).
 
 ### 11. Finjusterad liten LLM (destillation)
 
@@ -216,7 +236,7 @@ Utöver verktygen i [KALLOR.md](KALLOR.md#färdiga-verktyg-att-jämföra-med) fi
 Planen beskriver redan hur poängen räknas. Fyra saker behöver läggas till när metoderna jämförs:
 
 - **Jämför vid samma recall.** Många metoder ger ett tal för hur säkra de är. Då kan man välja en gräns på dev-texterna så att metoden når en bestämd recall per kategori, till exempel 0,90, och sedan jämföra precisionen på testtexterna. Annars ser en metod som flaggar mycket bra ut på recall och dålig på precision, och det går inte att säga vilken metod som är bäst. LLM:er ger sällan ett sådant tal. Då redovisas de som de är.
-- **Jämför modell A och modell B för alla metoder som tränas** (5, 6, 8 och 11). De är de metoder som kan lära sig skrivstilen i stället för uppgiften.
+- **Jämför modell A och modell B för alla metoder som tränas** (5, 6, 8, 11 och finjusterad Kev i 10). De är de metoder som kan lära sig skrivstilen i stället för uppgiften.
 - **Spann per mening.** Metoder som arbetar per mening lämnar hela meningen som spann. Det räknas som träff med poängprogrammets standardinställning, där det räcker att spannen överlappar med ett tecken, men oftast inte med `--iou 0.5`. Det ska stå i redovisningen.
 - **Mät kostnad och tid** per 1 000 texter, och ange om texterna lämnar vår miljö.
 
@@ -230,7 +250,7 @@ Listan täcker alla tre frågorna ovan: vad metoden lämnar, hur många exempel 
 | 2 | Lexikon med svensk ordanalys, med och utan NegEx | Baslinje för explicita uppgifter. Finns redan i planen. |
 | 3 | LLM via Vertex AI, zero-shot och few-shot | Troligen bäst på implicita uppgifter. Finns redan i planen. |
 | 4 | Samma instruktioner till en öppen LLM i egen miljö | Visar vad det kostar i träffsäkerhet att inte skicka texterna vidare. |
-| 5 | Jev, med frågor per text och per mening, på engelska och svenska | Behöver inga exempel, ger sannolikheter och är billig. Kan också vara sållet i en kaskad. |
+| 5 | Jev och Kev, med frågor per text och per mening, på engelska och svenska | Behöver inga exempel, ger sannolikheter och är billiga. Kev körs i egen miljö och kan finjusteras. Kan också vara sållet i en kaskad. |
 | 6 | Statistisk klassificerare och inbäddningar, per mening | Billiga lokala metoder. Visar om implicita uppgifter går att fånga utan stora modeller. |
 | 7 | Finjusterad svensk encoder-modell, per mening och per ord | Den viktigaste lokala kandidaten. |
 | 8 | GLiNER, utan träning och finjusterad | Lokal spannmodell som inte behöver träningsdata. |
@@ -247,7 +267,7 @@ Med öppna svenska texter, som domstolsavgöranden från Domstolsverket eller me
 
 1. **Vilka öppna LLM:er finns i Model Garden, i vilken region och med vilka kvoter?** Svaret avgör vilka modeller som kan testas lokalt i metod 9 och 11. Frågan finns också i planen.
 2. **Klarar de flerspråkiga GLiNER- och inbäddningsmodellerna, och Jev, svenska tillräckligt bra?** Det går snabbt att ta reda på med dev-texterna, och avgör om metod 6, 7 och 10 är värda mer arbete.
-3. **Kan vi få ett konto hos TypeSafe?** Jev finns bara i en tidig version, och det har periodvis varit stängt för nya konton. Ett konto behövs för att testa metod 10.
+3. **Kan vi få ett konto hos TypeSafe, och vilka GPU:er har vi?** Jev finns bara i en tidig version, och det har periodvis varit stängt för nya konton. Ett konto behövs för att testa Jev. Kev kräver inget konto, men Kev-4B behöver en GPU av typen L40S eller H100.
 4. **Ska sållet i kaskaden ha en garanterad recall?** I så fall behövs fler dev-texter per kategori än de ungefär 200 som planen räknar med.
 
 ## Källor
@@ -283,7 +303,11 @@ Genomgången gjordes med webbsökning. Webbplatsen arxiv.org gick inte att nå f
 - [Galtea: Does an AI judge need to speak your customer's language?](https://galtea.ai/blog/multilingual-llm-judge-benchmark), om frågor på andra språk än engelska.
 - [innFactory om Jev](https://innfactory.ai/en/ai-models/typesafe-jev/) och [Colchix om Jev och GDPR](https://colchix.com/blog/can-european-enterprises-use-jev), om var tjänsten körs.
 - [awesome-typesafe-jev](https://github.com/AbdelStark/awesome-typesafe-jev), en samling verktyg och oberoende utvärderingar.
-- [Laya](https://www.llmreference.com/model-family/laya), ett öppet alternativ som kan köras lokalt.
+- [Kev](https://github.com/jaredpalmer/kev), öppen variant av Jev med samma API. Vi har läst beskrivningen och modellkorten på GitHub, men inte kört modellen.
+- [SemIf](https://github.com/TheoLeeCJ/SemIf), program som läser svarssannolikheter ur öppna LLM:er. Beskrivningen på GitHub är läst.
+- [Laya Multilingual](https://www.llmreference.com/model/laya-multilingual), liten flerspråkig variant.
+- [autotrust/JEV](https://huggingface.co/autotrust/JEV), variant tränad på Jevs svar.
+- [JevBench](https://benchmarkheaven.com/jev-models), topplista över öppna Jev-liknande modeller.
 
 **Destillation och kombinationer**
 

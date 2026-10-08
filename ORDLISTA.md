@@ -80,7 +80,7 @@ Här förklaras orden och förkortningarna som används i dokumenten. Dokumenten
 
 **GLiNER.** En familj av små modeller som pekar ut bitar av texten för etiketter som man beskriver med vanliga ord, utan att först tränas på exempel.
 
-**Beslutsmodell (Jev).** En modell som inte skriver text utan svarar på frågor med fasta svarsalternativ, med en sannolikhet för varje alternativ. Jev, från företaget TypeSafe AI, är den mest kända.
+**Beslutsmodell (Jev).** En modell som inte skriver text utan svarar på frågor med fasta svarsalternativ, med en sannolikhet för varje alternativ. Jev, från företaget TypeSafe AI, är den mest kända. Kev är en öppen variant som kan köras i egen miljö.
 
 **Tokenklassificering och meningsklassificering.** Två sätt att ställa upp uppgiften för en encoder-modell. Vid *tokenklassificering* får varje ord en etikett, vilket ger exakta spann. Vid *meningsklassificering* får varje mening noll eller flera kategorier.
 
