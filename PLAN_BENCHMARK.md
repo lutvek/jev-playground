@@ -1,30 +1,44 @@
-# Plan: benchmark-dataset (PoC)
+# Plan för benchmark-datasetet (PoC)
 
-Planen besvarar frågeställning 1 i [FORSKNINGSFRAGA.md](FORSKNINGSFRAGA.md) på PoC-nivå. Källorna står i [KALLOR.md](KALLOR.md).
+Det här dokumentet beskriver hur vi tar fram testmaterialet som behövs för att besvara fråga 1 i [FORSKNINGSFRAGA.md](FORSKNINGSFRAGA.md): hur bygger vi en svensk benchmark för känsliga personuppgifter?
 
-**Ramar:**
+En *benchmark* är en fast samling testtexter med facit, alltså de rätta svaren, och ett fast sätt att räkna poäng. Den gör det möjligt att testa olika metoder på exakt samma sätt och jämföra resultaten.
 
-- Det här är en PoC, inte ett fullskaligt projekt.
-- Ingen manuell annotering.
-- Ingen produktionsdata.
-- En extern LLM får generera syntetisk data.
-- Vi har tillgång till GCP: Vertex AI, Model Garden och egna GPU:er.
+Källorna som planen bygger på står i [KALLOR.md](KALLOR.md). Begrepp som kan vara obekanta förklaras där de dyker upp och finns också i [ORDLISTA.md](ORDLISTA.md).
 
-## Kort version
+## Förutsättningar
 
-Färdiga dataset först, generering bara där hyllan inte räcker.
+- **Det här är en PoC**, ett mindre försöksprojekt som ska visa om idén håller. Det är inte en fullskalig lösning.
+- **Ingen handmärkning.** Ingen människa ska behöva gå igenom texter och märka ut var de känsliga uppgifterna står.
+- **Inga riktiga texter.** Vi använder inte texter från våra egna system.
+- **En extern AI-tjänst får skriva texter åt oss.** Eftersom texterna är påhittade innehåller de inga uppgifter om riktiga personer.
+- **Vi har tillgång till Google Cloud (GCP).** Där finns Vertex AI, där man kan anropa AI-modeller som Gemini och Claude, och Model Garden, en katalog med öppna modeller som vi kan köra själva. Vi har också egna GPU:er, den typ av datorkraft som behövs för att köra och träna modeller.
 
-| Del | Källa | Täcker | Etiketter från | Storlek |
-|---|---|---|---|---|
-| **REDACT-SV** | Färdigt dataset (GitHub) | Identifierare, explicita uttryck för hälsa, brott, fack, religion, politik och sexuell läggning | Datasetet | 561 dokument |
-| **PrivoNest-SV** | Färdigt dataset (Hugging Face), om ett stickprov håller måttet | Alla art. 9-kategorier och brott, mest explicita uttryck | Datasetet | ca 8 500 rader |
-| **Syntetisk** | Genereras av oss med LLM | Det hyllan saknar: implicita uttryck i alla kategorier, i underrättelsegenren, med vem uppgiften gäller | Konstruktionen | ca 1 000 testtexter, ca 3 000 träningstexter |
+## Sammanfattning
 
-Den syntetiska delen behövs eftersom inget färdigt dataset, på något språk, innehåller implicita art. 9-uttryck om identifierbara personer. Det är just den skillnaden mellan explicit och implicit som är kärnan i forskningsfrågan.
+Vi använder färdiga dataset där de räcker, och låter en AI skriva egna texter för det som saknas.
 
-Etiketterna behöver inte annoteras. Vi bestämmer först vad texten ska innehålla, och sedan skriver LLM:en texten och märker ut var uppgifterna står.
+Benchmarken består av tre delar:
 
-## 1. Kategorier
+| Del | Var den kommer ifrån | Vad den täcker | Hur stor |
+|---|---|---|---|
+| **REDACT-SV** | Färdigt dataset från GitHub | Namn, personnummer och andra identifierare, samt känsliga uppgifter som sägs rakt ut, framför allt hälsa och brott | 561 texter |
+| **PrivoNest-SV** | Färdigt dataset från Hugging Face, om kvaliteten håller | Alla känsliga kategorier, mest uppgifter som sägs rakt ut | ungefär 8 500 rader |
+| **Syntetisk** | Texter som en AI skriver på vår beställning | Det som saknas i de färdiga dataseten: uppgifter som går att lista ut av sammanhanget, i alla kategorier, i texter som liknar underrättelser och med uppgift om vem uppgiften gäller | ungefär 1 000 testtexter och 3 000 träningstexter |
+
+I de två färdiga dataseten följer facit med datasetet. I den syntetiska delen följer facit med konstruktionen, se nedan.
+
+**Varför vi måste skriva egna texter.** Inget färdigt dataset, på något språk, innehåller känsliga uppgifter som går att lista ut av sammanhanget utan att sägas rakt ut. Det är just de uppgifterna som dagens verktyg missar, och skillnaden mellan dem och de uppgifter som sägs rakt ut är kärnan i forskningsfrågan.
+
+**Varför ingen behöver märka upp texterna.** Vi bestämmer först vad en text ska innehålla, till exempel "en uppgift om religion om grannen, som inte sägs rakt ut". Sedan ber vi AI:n skriva texten och markera var uppgiften står. Facit finns alltså redan innan texten är skriven. Därefter kontrollerar vi automatiskt att texten verkligen stämmer med facit (avsnitt 5).
+
+## 1. Vad vi letar efter
+
+### Känsliga kategorier
+
+*Kod* är namnet som används i filerna och i koden. *Grund* är den artikel i dataskyddsförordningen GDPR som gör uppgiften skyddad.
+
+Varje kategori har två exempel: ett där uppgiften sägs rakt ut (*explicit*) och ett där den går att lista ut av sammanhanget (*implicit*).
 
 | Kategori | Kod | Grund | Explicit exempel | Implicit exempel |
 |---|---|---|---|---|
@@ -34,28 +48,45 @@ Etiketterna behöver inte annoteras. Vi bestämmer först vad texten ska innehå
 | Religiös eller filosofisk övertygelse | `RELIGION` | art. 9 | "han är muslim" | "han går i moskén varje fredag" |
 | Medlemskap i fackförening | `TRADE_UNION` | art. 9 | "hon är med i Kommunal" | "han är klubbordförande på fabriken" |
 | Sexualliv eller sexuell läggning | `SEXUALITY` | art. 9 | "han är homosexuell" | "han bor ihop med sin pojkvän" |
-| Genetiska och biometriska uppgifter | `GENETIC_BIOMETRIC` | art. 9 | "hon bär på BRCA-mutationen" | (sällsynt, låg prioritet) |
+| Genetiska och biometriska uppgifter | `GENETIC_BIOMETRIC` | art. 9 | "hon bär på BRCA-mutationen" | sällsynt, låg prioritet |
 | Lagöverträdelser | `CRIMINAL` | art. 10 | "han dömdes för misshandel 2019" | "han kom precis ut från Kumla" |
 
-Identifierare: `PERSON`, `PERSONNUMMER`, `PHONE`, `EMAIL`, `ADDRESS`, `LOCATION`, `ORGANISATION`, `DATE` och `IDENTIFIER` (till exempel ärendenummer).
+### Identifierare
 
-## 2. Format
+Vi letar också efter *identifierare*, alltså uppgifter som pekar ut vem någon är. De behövs för att kunna avgöra vem en känslig uppgift gäller, och de är personuppgifter i sig.
 
-Alla delar konverteras till samma JSONL-format, så att samma poängsättning fungerar överallt.
+| Kod | Vad det är |
+|---|---|
+| `PERSON` | namn på en person |
+| `PERSONNUMMER` | personnummer |
+| `PHONE` | telefonnummer |
+| `EMAIL` | e-postadress |
+| `ADDRESS` | gatuadress |
+| `LOCATION` | ort, land eller annan plats |
+| `ORGANISATION` | företag, myndighet, förening och liknande |
+| `DATE` | datum och tidpunkter |
+| `IDENTIFIER` | andra nummer som pekar ut någon, till exempel ärendenummer, kundnummer eller passnummer |
+
+## 2. Hur en text med facit sparas
+
+Alla tre delarna sparas i samma format, så att samma program kan räkna poäng för alla. Formatet heter JSONL: en textfil där varje rad beskriver en text och dess facit.
+
+Här är ett exempel, uppdelat på flera rader för att vara lättare att läsa. I filen står allt på en rad.
 
 ```json
 {
   "id": "syn-000123",
   "part": "synthetic",
+  "split": "test",
   "source": {"generator": "modell-a", "scenario_id": "scn-0042"},
   "text": "Jag skriver angående min granne Erik Lund. Han går i moskén varje fredag men har sedan i våras slutat äta och verkar mycket nedstämd.",
   "entities": [
     {"id": "P0", "role": "REPORTER", "mentions": []},
     {"id": "P1", "role": "SUBJECT", "mentions": [
-      {"start": 21, "end": 31, "type": "PERSON"},
       {"start": 32, "end": 41, "type": "PERSON"}
     ]}
   ],
+  "identifiers": [],
   "sensitive": [
     {"start": 47, "end": 72, "category": "RELIGION", "expression": "implicit", "subject": "P1"},
     {"start": 77, "end": 132, "category": "HEALTH", "expression": "implicit", "subject": "P1"}
@@ -63,138 +94,201 @@ Alla delar konverteras till samma JSONL-format, så att samma poängsättning fu
 }
 ```
 
-Dokumentnivåetiketter (finns kategori X i texten?) härleds från spannen. För de färdiga dataseten fylls bara de fält i som datasetet har.
+### Så läser man exemplet
 
-Två tillägg kom till när formatet byggdes:
+Texten handlar om två personer. P0 är den som skriver (`REPORTER`) och nämns inte vid namn. P1 är grannen som texten handlar om (`SUBJECT`) och nämns som "Erik Lund".
 
-- **`identifiers`** är en lista bredvid `entities` för identifierare som inte är knutna till en person, till exempel platser och datum. I dataset utan personkoppling ligger alla identifierare där.
-- **`ignore: true`** på ett känsligt spann betyder att kategorin nämns utan att något avslöjas om en person, till exempel i en negation. Spannet räknas varken som träff eller som falsklarm.
+Texten innehåller två känsliga uppgifter om P1, och ingen av dem sägs rakt ut:
 
-Schemat och alla regler står i [benchmark/README.md](benchmark/README.md).
+- "går i moskén varje fredag" avslöjar religion.
+- "har sedan i våras slutat äta och verkar mycket nedstämd" avslöjar något om hälsan.
+
+**Positioner i texten.** Var en uppgift står anges med två tal, `start` och `end`. De räknar tecken från textens början, där första tecknet har nummer 0. `start` är det första tecknet som ingår och `end` är det första tecknet som *inte* ingår. I exemplet är `start` 47 och `end` 72 tecknen 47 till och med 71, alltså "går i moskén varje fredag". En sådan avgränsad bit av texten kallas ett *spann*.
+
+### Fälten
+
+| Fält | Vad det betyder |
+|---|---|
+| `id` | Textens unika namn. |
+| `part` | Vilken av de tre delarna texten kommer från: `redact`, `privonest` eller `synthetic`. |
+| `split` | Om texten är till för test, justering (`dev`) eller träning (`train`), se avsnitt 4. |
+| `source` | Varifrån texten kommer, till exempel vilken AI-modell som skrev den. |
+| `text` | Själva texten. |
+| `entities` | Personerna i texten. Var och en har ett id, en roll och en lista över var personen nämns (`mentions`). Rollen är `REPORTER` för den som skriver, `SUBJECT` för den texten handlar om och `OTHER` för övriga. |
+| `identifiers` | Identifierare som inte hör till någon särskild person, till exempel orter och datum. I dataset som inte anger vem uppgifterna gäller ligger alla identifierare här. |
+| `sensitive` | De känsliga uppgifterna. Var och en har position, kategori, om den är explicit eller implicit (`expression`) och vem den gäller (`subject`). |
+
+Ett känsligt spann kan också ha `ignore: true`. Det betyder att kategorin nämns i texten utan att något avslöjas om en person, till exempel "han är *inte* medlem i facket". Ett sådant spann räknas inte alls när poängen räknas ut: en metod som flaggar det gör inte fel, och en metod som missar det gör inte heller fel.
+
+Om en text innehåller en viss kategori eller inte (*dokumentnivå*) står inte som ett eget fält. Det räknas ut från spannen.
+
+De färdiga dataseten anger inte alltid allt. Där fylls bara de fält i som datasetet har information om. Fälten `identifiers` och `ignore` lades till under arbetet, när det visade sig att REDACT behövde dem.
+
+Det fullständiga formatet och alla regler står i [benchmark/README.md](benchmark/README.md).
 
 ## 3. Färdiga dataset
 
-**REDACT-SV.** Datasetet kan hämtas från GitHub redan nu. Det har 561 svenska dokument, och 157 av dem har art. 9/10-spann. Dess etiketter mappas till våra koder. Tre saker att veta:
+### REDACT-SV
 
-- **Bara explicita uttryck.** Datasetet säger inget om implicita uttryck.
-- **Etiketterna gäller ord, inte personer.** Ett partinamn märks även när ingen persons åsikt avslöjas. Därför används datasetet främst för identifierare, hälsa och brott. Övriga kategorier redovisas med förbehåll.
-- **Mycket kodväxling.** Bara 244 dokument är helt på svenska. Resultat redovisas både för alla dokument och för de helt svenska.
-- **Tunt utanför hälsa och brott.** Efter konverteringen räknas 147 dokument som positiva. Bland de helt svenska har `POLITICS` 6 dokument, `TRADE_UNION` 3, `RELIGION` 1 och `SEXUALITY` inget. Där går det bara att mäta `HEALTH` och, med stor osäkerhet, `CRIMINAL`.
+REDACT är ett flerspråkigt dataset där en AI har skrivit texter som e-post, ärendeanteckningar och chattar, bland annat från myndigheter, polis och vård. Personerna är påhittade. Den svenska delen kan hämtas från GitHub redan nu och har 561 texter. 157 av dem innehåller känsliga uppgifter. Vi har gjort om texterna till vårt format och kopplat REDACT:s egna etiketter till våra koder.
 
-**PrivoNest-SV.** Kräver att huggingface.co öppnas i molnmiljön. Vi tittar på ett stickprov på 20–30 rader. Håller kvaliteten används den svenska testdelen som extra testdata och träningsdelen som träningsdata till encoder-modellerna. Annars stryks den.
+Fyra saker är bra att känna till:
 
-Engelska dataset, som TAB och syntetiska självutlämnanden, skulle kunna översättas. Det ingår inte i PoC:n eftersom det tillför lite jämfört med egen generering i rätt genre.
+- **Bara uppgifter som sägs rakt ut.** Datasetet säger därför inget om hur bra metoder är på uppgifter som går att lista ut av sammanhanget.
+- **Etiketterna sitter på ord, inte på personer.** Ett partinamn är märkt som politik även när texten inte säger något om någons politiska åsikt, till exempel när partiet bara nämns i förbigående. Därför används datasetet främst för identifierare, hälsa och brott. Resultat för övriga kategorier redovisas med en reservation.
+- **Många texter blandar språk.** Bara 244 av texterna är helt på svenska. Resten blandar in engelska eller andra språk. Resultaten redovisas både för alla texter och för de helt svenska.
+- **Få exempel utanför hälsa och brott.** Efter konverteringen räknas 147 texter som att de innehåller något känsligt. (De övriga 10 av de 157 innehåller bara uppgifter som REDACT själv markerar som "avslöjar inget", till exempel nekanden.) Bland de helt svenska texterna finns politik i 6 texter, fack i 3, religion i 1 och sexuell läggning i ingen. Det räcker för att mäta hälsa, och med stor osäkerhet brott, men inte de andra kategorierna.
 
-## 4. Syntetisk generering
+### PrivoNest-SV
 
-### Så fungerar det
+PrivoNest är ett annat flerspråkigt, AI-skrivet dataset, som enligt sin beskrivning har ungefär 8 500 svenska rader med alla känsliga kategorier. Det ligger på Hugging Face, en webbplats som molnmiljön där vi arbetar i dag inte når. Den måste öppnas först.
 
-1. **Scenariospecar slumpas fram i kod.** Varje spec innehåller:
-   - typ av underrättelse och avsändare
-   - 1–3 personer med roller
-   - 1–3 känsliga uppgifter, var och en med kategori, explicit eller implicit, och vem den gäller
-   - längd och ton, inklusive talspråk och stavfel
+Planen är att läsa 20–30 slumpvis valda rader. Om kvaliteten håller använder vi datasetets svenska testdel som extra testmaterial och dess träningsdel för att träna encoder-modellerna (se ordlistan). Om kvaliteten inte håller stryks datasetet.
 
-   Namn tas från SCB:s namnstatistik och personnummer från Skatteverkets testpersonnummer.
-2. **LLM:en skriver texten** och märker varje uppgift med en tagg, till exempel `<RELIGION implicit P1>går i moskén varje fredag</RELIGION>`. Personer och identifierare märks på samma sätt.
-3. **Kod tolkar taggarna** till spann och tar bort dem ur texten.
-4. **Automatisk kontroll** (avsnitt 5) sorterar bort texter som inte stämmer.
+### Engelska dataset
 
-### Implicit på riktigt
+Det finns engelska dataset, som TAB och SynthPAI (se [KALLOR.md](KALLOR.md)), som skulle kunna översättas till svenska. Det ingår inte i PoC:n. De består av andra sorters texter än underrättelser, så det ger mer att skriva egna texter i rätt stil från början.
 
-För varje kategori finns en lista med förbjudna ord som namnger kategorin, till exempel "muslim", "religion", "troende" och "kristen" för `RELIGION`. Ett implicit spann får inte innehålla något av orden. Det kontrolleras i kod, så att implicita uttryck verkligen är implicita och inte bara märkta så.
+## 4. Egna, AI-skrivna texter
 
-### Svåra negativa exempel
+### Så går det till
 
-Ungefär 25 procent av texterna saknar känsliga uppgifter men innehåller ord som liknar dem:
+Varje text tas fram i fyra steg.
 
-- en moské eller ett parti som nämns utan koppling till en person
-- sjukdomsord i bildlig betydelse ("det här är ju sjukt")
-- brott som omtalas allmänt
+**Steg 1: Datorn slumpar fram en beställning.** Ett program väljer slumpvis vad texten ska innehålla. En sådan beställning kallas *scenariospec* och anger:
 
-Utan dem kan precision inte mätas. Negationer ("han är inte medlem i facket") undviks helt i PoC:n, eftersom det är oklart om de ska räknas som känsliga.
+- vilken sorts underrättelse det är och vem som skickar den
+- 1–3 personer och vilken roll var och en har
+- 1–3 känsliga uppgifter, och för varje uppgift kategori, om den ska sägas rakt ut eller inte, och vem den gäller
+- hur lång texten ska vara och vilken ton den ska ha, till exempel vardagligt språk eller enstaka stavfel
+
+Namnen hämtas från SCB:s namnstatistik, så att de är vanliga svenska namn. Personnumren hämtas från Skatteverkets lista över testpersonnummer, som aldrig delas ut till riktiga personer.
+
+**Steg 2: AI:n skriver texten och markerar uppgifterna.** Varje känslig uppgift omges av en markering som anger kategori, uttryckstyp och person. Det kan se ut ungefär så här:
+
+```
+Jag skriver angående min granne <PERSON P1>Erik Lund</PERSON>. Han <RELIGION implicit P1>går i moskén varje fredag</RELIGION> men ...
+```
+
+Personer och identifierare markeras på samma sätt. Exakt hur markeringarna ska se ut bestäms när generatorn byggs.
+
+**Steg 3: Ett program tar bort markeringarna.** Programmet noterar var varje markering stod, räknar ut start- och slutposition och tar sedan bort markeringarna ur texten. Kvar blir en vanlig text och ett facit i formatet ovan.
+
+**Steg 4: Automatiska kontroller.** Texter som inte klarar kontrollerna i avsnitt 5 sorteras bort.
+
+### Kontroll av att implicit verkligen är implicit
+
+En AI som ska skriva en uppgift som inte sägs rakt ut kan ändå råka skriva ut den. För att fånga det finns det en lista med förbjudna ord för varje kategori. För `RELIGION` står till exempel "muslim", "religion", "troende" och "kristen" på listan. Ett spann som är märkt som implicit får inte innehålla något av orden. Ett program kontrollerar det, så att uppgifterna verkligen är implicita och inte bara märkta så.
+
+### Texter som liknar känsliga men inte är det
+
+Ungefär en fjärdedel av texterna ska sakna känsliga uppgifter men ändå innehålla ord som påminner om dem:
+
+- en moské eller ett parti som nämns utan koppling till någon person
+- sjukdomsord som används bildligt, som "det här är ju sjukt"
+- brott som omtalas allmänt, utan att någon pekas ut
+
+De behövs för att kunna mäta precision, alltså hur ofta en metod har rätt när den flaggar något. Utan dem skulle en metod som flaggar varje text där ordet "moské" förekommer se lika bra ut som en metod som förstår sammanhanget.
+
+Nekanden, som "han är inte medlem i facket", tas inte med i PoC:n. Det är oklart om de ska räknas som känsliga, och den frågan vill vi inte behöva avgöra nu.
 
 ### Storlek och uppdelning
 
-| Mängd | Storlek | Generator | Användning |
+Texterna delas upp i tre högar som används till olika saker:
+
+| Hög | Storlek | Skrivs av | Används till |
 |---|---|---|---|
-| Test | ca 1 000 texter, minst 50 positiva fall per kategori och uttryckstyp | Hälften med modell A, hälften med modell B | Låst. Används bara för slutmätning. |
-| Dev | ca 200 texter | Modell A | Justera promptar och tröskelvärden |
-| Train | ca 3 000 texter | Bara modell A | Träna klassificerare och encoder-modeller |
+| Test | ungefär 1 000 texter, med minst 50 exempel per kategori och uttryckstyp | Hälften av modell A, hälften av modell B | Låst. Används bara vid slutmätningen. |
+| Dev | ungefär 200 texter | Modell A | Prova och justera instruktioner och gränsvärden under arbetets gång. |
+| Train | ungefär 3 000 texter | Bara modell A | Träna klassificerare och encoder-modeller. |
 
-Träningsdata kommer bara från modell A. Skillnaden mellan resultat på A-test och B-test visar då hur mycket metoderna har lärt sig generatorns stil i stället för själva uppgiften. Med 50 fall per cell blir konfidensintervallet för recall ungefär ±0,11–0,14. Det räcker för att se tydliga skillnader i en PoC.
+**Varför testtexterna är låsta.** Om man justerar en metod tills den blir bra på testtexterna mäter man till slut hur väl metoden har anpassats till just de texterna, inte hur bra den är i allmänhet. Därför justerar vi bara mot dev-texterna och tittar på testtexterna först vid slutmätningen.
 
-### Modeller på GCP
+**Varför två olika AI-modeller skriver testtexterna.** Varje AI-modell har sin egen stil. En metod som tränas på texter från modell A kan lära sig känna igen modell A:s stil i stället för de känsliga uppgifterna. Träningstexterna kommer därför bara från modell A, medan testtexterna kommer från både A och B. Om en metod är mycket bättre på A:s testtexter än på B:s har den lärt sig stilen och inte uppgiften.
 
-- **Generering:** en stark modell via Vertex AI, där både Gemini och Claude finns. Svensk textkvalitet är viktigast här, och kostnaden är låg för några tusen korta texter.
-- **Modell A och B** kommer från olika modellfamiljer. Om en av dem också testas som metod redovisas det, eftersom den kan gynnas av att ha skrivit testtexterna.
-- **Öppna modeller** (via Model Garden eller på egen GPU) passar bättre som metoder att testa än som generatorer. De motsvarar alternativet att köra modellen i egen miljö, och det är en av avvägningarna i frågeställning 3.
+**Varför minst 50 exempel per kategori räcker.** Med 50 exempel blir osäkerheten i ett resultat ungefär plus minus 0,11–0,14. Om en metod hittar 40 av 50 (recall 0,80) ligger det verkliga värdet alltså troligen någonstans mellan 0,69 och 0,91. Det är för grovt för att skilja metoder som är nästan lika bra, men tillräckligt för att se tydliga skillnader, och det är vad en PoC behöver.
 
-## 5. Kvalitet utan manuell annotering
+### Vilka AI-modeller som används
 
-Varje genererad text går igenom automatiska kontroller. Texter som inte klarar dem sorteras bort.
+- **För att skriva texterna** använder vi en stark modell via Vertex AI, där både Gemini och Claude finns. Det viktigaste är att den skriver bra svenska. Kostnaden blir låg, eftersom det handlar om några tusen korta texter.
+- **Modell A och modell B** ska komma från olika tillverkare. Om en av dem också testas som metod redovisar vi det, eftersom en modell kan ha en fördel när den ska analysera texter som den själv har skrivit.
+- **Öppna modeller**, som vi kan köra via Model Garden eller på egna GPU:er, passar bättre att testa som metoder än att använda för att skriva texter. De motsvarar alternativet att köra analysen i vår egen miljö i stället för hos en extern leverantör, vilket är en av avvägningarna i fråga 3.
 
-1. **Format.** Taggarna går att tolka, spannen ligger rätt och alla uppgifter i specen finns med.
-2. **Förbjudna ord** i implicita spann (se ovan).
-3. **Verifiering med en annan modell.** En LLM från en annan familj än generatorn får texten och etiketterna. Den svarar på två frågor: avslöjar varje märkt spann verkligen den angivna kategorin om den angivna personen? Finns det känsliga uppgifter som inte är märkta?
+## 5. Kvalitetskontroll utan handmärkning
 
-Hur stor andel som sorteras bort, per kategori, redovisas. Det visar vilka kategorier som är svåra att generera.
+Eftersom ingen människa läser texterna kontrolleras varje AI-skriven text automatiskt. Texter som inte klarar alla tre kontrollerna sorteras bort.
 
-**Känd risk.** Verifieringen kan sortera bort implicita texter som är för subtila för en LLM. Det gör testet något lättare för LLM-metoder. Att verifieraren ser etiketterna, i stället för att själv hitta uppgifterna, minskar risken men tar inte bort den. Om någon kan läsa igenom 30 slumpade texter, ungefär en timme, får vi ett grovt mått på hur bra etiketterna är. Det är frivilligt men rekommenderas.
+1. **Formatkontroll.** Markeringarna går att tolka, positionerna stämmer och alla uppgifter som beställdes i scenariospecen finns med.
+2. **Förbjudna ord.** Inga implicita spann innehåller ord som avslöjar kategorin rakt ut (se ovan).
+3. **Granskning av en annan AI-modell.** En AI från en annan tillverkare än den som skrev texten får läsa texten och facit, och svara på två frågor:
+   - Avslöjar varje markerad bit verkligen den angivna kategorin om den angivna personen?
+   - Finns det känsliga uppgifter i texten som inte är markerade?
 
-## 6. Utvärdering
+Vi redovisar hur stor andel av texterna som sorteras bort i varje kategori. Det visar vilka kategorier som är svåra att få AI:n att skriva bra texter om.
 
-Ett gemensamt poängsättningsskript används för alla metoder och alla delar.
+**En känd risk.** Granskningen kan sortera bort texter där uppgiften är så subtil att granskaren inte uppfattar den. Då blir de kvarvarande testtexterna något lättare för AI-baserade metoder, eftersom de mest svårfångade fallen har försvunnit. Risken minskar av att granskaren får se facit och bara ska bedöma det, i stället för att själv leta efter uppgifterna. Helt borta är den inte.
 
-- **Primärt:** recall per kategori på dokumentnivå, uppdelat på explicit och implicit. Precision redovisas bredvid.
-- **Sekundärt:**
-  - spannivå med överlapp
-  - attribution, det vill säga rätt person (bara i den syntetiska delen)
-  - identifierare (främst i REDACT)
-- **Uppdelning:** per del och per generator.
-- **Osäkerhet:** konfidensintervall med bootstrap. Metoder jämförs parvis.
+**En frivillig stickprovskontroll.** Om någon kan läsa 30 slumpvis valda texter, vilket tar ungefär en timme, får vi en grov uppfattning om hur bra facit är. Det är inget krav men rekommenderas.
+
+## 6. Hur resultaten mäts
+
+Samma poängprogram används för alla metoder och alla delar, så att resultaten går att jämföra.
+
+**Huvudmått: recall per kategori på dokumentnivå.** För varje kategori räknar vi hur stor andel av de texter som innehåller kategorin som metoden har flaggat för just den kategorin. Det redovisas separat för uppgifter som sägs rakt ut och uppgifter som går att lista ut av sammanhanget. Precision, alltså hur stor andel av metodens flaggningar som var rätt, redovisas bredvid.
+
+**Kompletterande mått:**
+
+- **Spannivå:** pekar metoden också ut rätt ställe i texten? Det räcker att metodens spann överlappar facit.
+- **Rätt person:** kopplar metoden uppgiften till rätt person? Kan bara mätas i den syntetiska delen, eftersom de färdiga dataseten inte anger vem uppgifterna gäller.
+- **Identifierare:** hittar metoden namn, personnummer och liknande? Mäts främst i REDACT.
+
+**Uppdelning.** Resultaten redovisas per del (REDACT, PrivoNest, syntetisk) och per AI-modell som skrev texterna.
+
+**Osäkerhet.** Varje resultat redovisas med ett konfidensintervall, ett intervall som det verkliga värdet troligen ligger inom. Intervallen räknas fram med *bootstrap*: datorn drar slumpvis nya urval av testtexterna och räknar om resultatet för varje urval. Hur mycket resultatet varierar mellan urvalen visar hur osäkert det är. Två metoder jämförs på samma urval, så att det syns om skillnaden mellan dem är verklig eller kan bero på slumpen.
 
 ## 7. Vad PoC:n kan och inte kan visa
 
-**Kan visa:**
+**Den kan visa:**
 
-- hur metoderna rangordnas
-- hur stort glappet är mellan explicita och implicita uttryck, per kategori
-- kostnad, latens och var modellen kan köras (frågeställning 3)
+- vilka metoder som är bättre och sämre än andra
+- hur mycket sämre metoderna är på uppgifter som går att lista ut av sammanhanget än på uppgifter som sägs rakt ut, per kategori
+- vad metoderna kostar, hur snabba de är och om de kan köras i vår egen miljö (fråga 3)
 
-**Kan inte visa:** hur väl siffrorna håller på riktiga underrättelser.
+**Den kan inte visa** hur bra metoderna är på riktiga underrättelser. Alla testtexter är antingen AI-skrivna eller hämtade från andra sammanhang.
 
-Tre billiga kontroller ger ändå en indikation:
+Tre enkla kontroller ger ändå en fingervisning:
 
-1. **Generatorkänslighet.** Om metoderna rangordnas likadant på A-test och B-test beror resultatet mindre på vem som skrev texterna.
-2. **Extern jämförelse.** Om rangordningen på explicita uttryck stämmer mellan vår syntetiska del och REDACT, som någon annan har byggt, är det ett gott tecken.
-3. **Läsning av domänperson.** En snabb genomläsning av ett 20-tal texter visar om de liknar riktiga underrättelser. Den är frivillig.
+1. **Spelar det roll vem som skrev texterna?** Om metoderna hamnar i samma ordning på modell A:s och modell B:s testtexter beror resultatet mindre på vilken AI som skrev dem.
+2. **Stämmer det med någon annans data?** Om metoderna hamnar i samma ordning på explicita uppgifter i vår syntetiska del som i REDACT, som någon annan har byggt, är det ett gott tecken.
+3. **Liknar texterna verkligheten?** Om någon som arbetar med riktiga underrättelser läser ett 20-tal av texterna får vi veta om de liknar det vi faktiskt tar emot. Det är frivilligt.
 
-Detta ska stå tydligt i resultatredovisningen.
+De här begränsningarna ska stå tydligt när resultaten redovisas.
 
-## 8. Steg
+## 8. Arbetsgång och status
 
-1. **REDACT-SV:** hämta, konvertera till formatet och mappa etiketterna. *Klart.*
-2. **Poängsättningsskript och formatvalidering.** *Klart.*
-3. **Generator:** spec-slumpare, prompt, taggtolkning och kontroller. Generera 50 pilottexter, titta på dem och justera.
-4. **Full generering:** test (A+B), dev och train.
-5. **PrivoNest-SV:** stickprov och konvertering, när huggingface.co är öppnat.
-6. **Två enkla baslinjer** (regex/lexikon och en LLM med prompt) körs på allt för att testa hela kedjan. Därefter tar metodjämförelsen i frågeställning 2 vid.
+| Steg | Vad | Status |
+|---|---|---|
+| 1 | **REDACT-SV:** hämta datasetet, göra om det till vårt format och koppla dess etiketter till våra koder. | Klart |
+| 2 | **Poängprogram och formatkontroll:** programmet som räknar poäng och programmet som kontrollerar att filer har rätt format. | Klart |
+| 3 | **Textgeneratorn:** programmet som slumpar fram beställningar, instruktionerna till AI:n, tolkningen av markeringarna och kontrollerna. Vi skriver först 50 provtexter, läser dem och justerar. | Inte påbörjat |
+| 4 | **Alla AI-skrivna texter:** test (av modell A och B), dev och train. | Inte påbörjat |
+| 5 | **PrivoNest-SV:** stickprov och konvertering till vårt format, när Hugging Face har öppnats. | Inte påbörjat |
+| 6 | **Två enkla referensmetoder** körs på allt för att testa att hela kedjan fungerar: en som letar efter ord ur en ordlista och en AI med skrivna instruktioner. Därefter börjar metodjämförelsen i fråga 2. | Inte påbörjat |
 
-**Struktur i repot:**
+### Mappar i repot
 
 ```
 benchmark/
-  README.md       datablad: delar, storlek, kända brister
-  schema/         JSON-schema och validering
+  README.md       datablad: delarna, storlek och kända brister
+  schema/         beskrivning av formatet och programmet som kontrollerar det
   extern/         hämtning och konvertering av REDACT och PrivoNest
-  generering/     spec-slumpare, promptar, taggtolkning, kontroller
-  eval/           poängsättning
-  data/           genererade och konverterade data (checkas inte in)
+  generering/     textgeneratorn (finns inte än)
+  eval/           poängprogrammet
+  data/           hämtade och genererade texter (sparas inte i repot)
 ```
 
 ## 9. Öppna frågor
 
-1. **Var ska genereringen köras?** Antingen här i molnmiljön, vilket kräver en GCP-nyckel som hemlighet och nätverksåtkomst till Vertex AI, eller som skript i GCP.
-2. **Vilka modeller finns i ert GCP-projekt** (region och kvoter)? Det styr valet av generator A och B och vilka LLM:er som testas som metoder.
-3. **Vilka typer av underrättelser** ska texterna efterlikna? Utan svar väljer vi några allmänna typer: underrättelser från myndigheter, från privatpersoner och från vård och skola.
+1. **Var ska texterna genereras?** Antingen i molnmiljön där vi arbetar med repot, vilket kräver en GCP-nyckel som hemlighet och att miljön får nå Vertex AI, eller som ett program som körs direkt i GCP.
+2. **Vilka AI-modeller finns i ert GCP-projekt,** och i vilken region och med vilka kvoter? Svaret avgör vilka modeller som kan bli A och B, och vilka AI-modeller som kan testas som metoder.
+3. **Vilka sorters underrättelser ska texterna likna?** Om vi inte får något svar väljer vi några allmänna typer: underrättelser från myndigheter, från privatpersoner och från vård och skola.
