@@ -19,25 +19,22 @@ Molnmiljön där sökningen gjordes blockerade huggingface.co, spraakbanken.gu.s
 5. **"SEX" betyder kön** i både TAB och SynthPAI, inte sexualliv eller sexuell läggning.
 6. **Bästa källan till riktig svensk text är Domstolsverkets öppna API för rättspraxis.** Migrationsmål innehåller ofta religion, sexuell läggning, etniskt ursprung och politisk åsikt, ofta implicit. Arbetsdomstolen ger fackmedlemskap.
 
-## Används i första versionen
+## Används i PoC:n
 
 | Källa | Vad | Licens och åtkomst | Användning | Nivå |
 |---|---|---|---|---|
 | **REDACT**, svenska delen<br>[GitHub](https://github.com/guneeshvats/REDACT-PII-Benchmark), [HF](https://huggingface.co/datasets/guneeshv/REDACT-PII-Benchmark) (gated) | 561 svenska LLM-genererade dokument (e-post, ärendeanteckningar, chatt) i bland annat myndighetsdomäner. 157 dokument har art. 9/10-spann: hälsa 192, brott 82, sjukskrivning 74, allergi 52, fack 38, religion 15, parti 15, sexuell läggning 7. 364 personnummer. | Egna "REDACT Dataset Terms": forskning och benchmarking tillåts med attribution, profilering och återidentifiering förbjuds. Koden är MIT. | Extern kontroll av explicita uttryck och identifierare. | [V] |
+| **PrivoNest**, svenska delen<br>[HF](https://huggingface.co/datasets/abbasrazalagha/PrivoNest_Multilingual_Privacy_Dataset) | Enligt kortet 8 545 svenska rader (6 968 train, 391 val, 1 186 test) med 88 etiketter, bland annat alla art. 9-kategorier och `CRIMINAL_RECORD`. | Apache-2.0 enligt kortet. | Om ett stickprov håller måttet: extra testdata och träningsdata för encoder-modeller. En enskild uppladdare och okänd genereringsmetod, och vi har inte sett några rader. | [S] |
+
+## Användbart om projektet växer (kräver annotering)
+
+Riktig svensk text, men utan etiketter. Utanför PoC:n eftersom vi inte annoterar.
+
+| Källa | Vad | Licens och åtkomst | Användning | Nivå |
+|---|---|---|---|---|
 | **Domstolsverkets Rättspraxis-API**<br>`https://rattspraxis.etjanst.domstol.se/api/v1` | Avgöranden från HD, HFD, hovrätter, kammarrätter, Arbetsdomstolen och Migrationsöverdomstolen. Hela avgöranden som PDF sedan mars 2025, referat sedan 1981. Parter anges med initialer. | Öppna data, ingen inloggning. | Utdrag som vi annoterar själva: riktigt språk. Migrationsmål ger religion, sexuell läggning, etniskt ursprung och politik. Arbetsdomstolen ger fack. Kammarrätternas LVU/LVM-mål ger hälsa. Hovrätterna ger brott. | [D] |
 | **JO-beslut**<br>[jo.se](https://www.jo.se/jo-beslut/sokresultat/) | Beslut om klagomål på myndigheter, ofta socialtjänst, polis och psykiatri. Ingen bulknedladdning, en PDF per beslut. Lagen.nu-motorn [ferenda](https://github.com/staffanm/ferenda) har kod som hämtar dem. | Allmänna handlingar. | Utdrag att annotera. Närmast myndighetsgenren. | [D] |
 | **Flashback och Familjeliv** via Språkbanken/Korp | Mycket stora forumkorpusar, till exempel Familjeliv "Känsliga rummet" och Flashback "Droger" och "Sex". | CC BY 4.0. **Nedladdningarna har omkastade meningar och Korp visar bara en mening som sammanhang.** | En separat meningsnivåsamling med informella, ofta implicita uttryck och svåra negativa exempel. Inga användarnamn sparas. | [S]/[D] |
-
-## Kan användas efter kontroll
-
-| Källa | Vad | Förbehåll | Nivå |
-|---|---|---|---|
-| **PrivoNest**<br>[HF](https://huggingface.co/datasets/abbasrazalagha/PrivoNest_Multilingual_Privacy_Dataset) | Enligt kortet 8 545 svenska rader och 88 etiketter, bland annat alla art. 9-kategorier och `CRIMINAL_RECORD`. Apache-2.0. | En enskild uppladdare, okänd genereringsmetod, och vi har inte kunnat titta på några rader. Måste granskas innan det används som test- eller träningsdata. | [S] |
-| **Syntetiska självutlämnanden** (Jangra m.fl. 2025)<br>[GitHub](https://github.com/socsys/synthetic) | 2 888 engelska LLM-omskrivna inlägg med spann för bland annat sexualitet, psykisk hälsa, medicinsk information, religion och etnicitet. MIT. | Skrivet i första person. Måste översättas och anpassas. Repot innehåller också originalinlägg från Reddit, `original_dataset.csv`, som vi inte använder. | [V] |
-| **ai4privacy openpii-1m**<br>[HF](https://huggingface.co/datasets/ai4privacy/pii-masking-openpii-1m) | Syntetisk flerspråkig PII-data. Svenska ska ingå. Bara identifierare, inga art. 9-etiketter. | Antalet svenska rader och licensen är oklara (källorna motsäger varandra). | [S] |
-| **Lawline**, **Förhör**, **MEPAC** (Språkbanken, skyddade) | Juridiska frågor från allmänheten, polisförhör (49 000 tokens) och cancerbloggar. Förhör ligger närmast vår domän. | Åtkomst måste sökas hos Språkbanken. Små. | [S]/[D] |
-| **Swe-NERC** (Språkbanken) | Svensk NER med etiketter för symtom och behandlingar. CC BY 4.0. | Hälsotermer, inte kopplade till personer. | [D] |
-| **OpenChart-SE**<br>[HF](https://huggingface.co/datasets/BSC-NLP4BIA/swedish_openchart_se) | 50 fiktiva svenska akutjournaler skrivna av läkare. CC BY 4.0. | Liten. Användbar som förebild för hälsospråk. | [D] |
 
 ## Mallar för schema och metod
 
