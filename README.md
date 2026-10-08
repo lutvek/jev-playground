@@ -22,7 +22,8 @@ Begrepp som kan vara obekanta, som *recall*, *spann* och *LLM*, förklaras i **[
 ## Läget just nu
 
 - **Klart:** Det första färdiga datasetet, REDACT, är hämtat och omgjort till vårt format. Programmen som kontrollerar formatet och räknar poäng är klara.
-- **Nästa steg:** Bygga programmet som låter en AI skriva egna testtexter. Det behövs för uppgifter som inte sägs rakt ut, eftersom inget färdigt dataset innehåller sådana.
+- **Pågår:** Programmet som låter en AI skriva egna testtexter finns och har provkörts. Det behövs för uppgifter som inte sägs rakt ut, eftersom inget färdigt dataset innehåller sådana.
+- **Nästa steg:** Låta en andra AI-modell granska texterna, byta platshållarna mot riktiga namn och testpersonnummer, och sedan skriva alla texter.
 
 ## Kom igång med koden
 
